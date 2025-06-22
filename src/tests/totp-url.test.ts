@@ -14,12 +14,12 @@ describe('TOTP URL Format Tests', () => {
         // 生成otpauth URL
         const otpauthUrl = TOTPService.generateOTPAuthURL(secret, username, serviceName);
         
-        // 验证URL格式 - 修复正则表达式匹配实际格式
+        // 验证URL格式 - 修复正则表达式匹配实际格式 (发行者:账户名)
         const urlPattern = /^otpauth:\/\/totp\/([^?]+)\?secret=([^&]+)&issuer=([^&]+)&algorithm=([^&]+)&digits=(\d+)&period=(\d+)$/;
         const match = otpauthUrl.match(urlPattern);
         
         expect(match).toBeTruthy();
-        expect(match![1]).toBe('testuser'); // 账户名
+        expect(match![1]).toBe('Happy_TTS:testuser'); // 发行者:账户名
         expect(match![2]).toBe(secret); // 密钥
         expect(match![3]).toBe('Happy_TTS'); // 发行者参数
         expect(match![4]).toBe('SHA1'); // 算法
