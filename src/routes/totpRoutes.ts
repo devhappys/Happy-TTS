@@ -1,7 +1,15 @@
 import { Router } from 'express';
 import { TOTPController } from '../controllers/totpController';
+import rateLimit from 'express-rate-limit';
 
 const router = Router();
+
+// Define rate limiter for sensitive routes
+const disableRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // Limit each IP to 10 requests per windowMs
+    message: 'Too many requests from this IP, please try again later.',
+});
 
 // 生成TOTP设置信息
 router.post('/generate-setup', TOTPController.generateSetup);
@@ -13,7 +21,7 @@ router.post('/verify-and-enable', TOTPController.verifyAndEnable);
 router.post('/verify-token', TOTPController.verifyToken);
 
 // 禁用TOTP
-router.post('/disable', TOTPController.disable);
+router.post('/disable', disableRateLimiter, TOTPController.disable);
 
 // 获取TOTP状态
 router.get('/status', TOTPController.getStatus);
