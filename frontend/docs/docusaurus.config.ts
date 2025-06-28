@@ -67,7 +67,7 @@ const config: Config = {
           label: 'API 文档',
         },
         {
-          href: 'https://github.com/happy-tts/happy-tts',
+          href: 'https://github.com/hapxscom/happy-tts',
           label: 'GitHub',
           position: 'right',
         },
@@ -108,7 +108,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Happy-TTS. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Happy-TTS.`,
     },
     prism: {
       theme: prismThemes.github,
