@@ -48,14 +48,34 @@ class IntegrityChecker {
   private baselineChecksum: string = '';
   private proxyDetectionEnabled = true;
   private lastNetworkCheck = 0;
-  private readonly NETWORK_CHECK_INTERVAL = 1000; // 1秒检查一次网络完整性
+  private networkCheckInterval = 1000; // 1秒检查一次网络完整性
+  private debugMode = import.meta.env.VITE_DEBUG_MODE === 'true';
+  private falsePositiveCount = 0;
+  private readonly MAX_FALSE_POSITIVES = 5;
+  private isInitialized = false;
+  private initializationDelay = 2000; // 2秒延迟初始化，等待页面完全加载
+  private errorCount = 0;
+  private readonly MAX_ERRORS = 10; // 最大错误数量
+  private lastErrorTime = 0;
+  private readonly ERROR_COOLDOWN = 5000; // 错误冷却时间（毫秒）
 
   private constructor() {
-    this.initializeIntegrityCheck();
-    this.initializeRecoveryMode();
-    this.initializeNetworkMonitoring();
-    this.initializeProxyDetection();
-    this.captureBaselineContent();
+    // 设置全局错误拦截器
+    this.setupGlobalErrorHandler();
+    
+    // 延迟初始化，等待页面完全加载
+    setTimeout(() => {
+      this.initializeIntegrityCheck();
+      this.initializeRecoveryMode();
+      this.initializeNetworkMonitoring();
+      this.initializeProxyDetection();
+      this.captureBaselineContent();
+      this.isInitialized = true;
+      
+      if (this.debugMode) {
+        this.safeLog('log', '🔒 完整性检查器已初始化，调试模式已启用');
+      }
+    }, this.initializationDelay);
   }
 
   public static getInstance(): IntegrityChecker {
@@ -65,16 +85,84 @@ class IntegrityChecker {
     return IntegrityChecker.instance;
   }
 
+  // 启用调试模式
+  public enableDebugMode(): void {
+    this.debugMode = true;
+    this.safeLog('log', '🔍 完整性检查器调试模式已启用');
+  }
+
+  // 禁用调试模式
+  public disableDebugMode(): void {
+    this.debugMode = false;
+    this.safeLog('log', '🔍 完整性检查器调试模式已禁用');
+  }
+
+  // 获取调试信息
+  public getDebugInfo(): any {
+    return {
+      isInitialized: this.isInitialized,
+      isInRecoveryMode: this.isInRecoveryMode,
+      proxyDetectionEnabled: this.proxyDetectionEnabled,
+      falsePositiveCount: this.falsePositiveCount,
+      baselineChecksum: this.baselineChecksum,
+      originalContentLength: this.originalPageContent.length,
+      currentContentLength: document.documentElement.outerHTML.length,
+      integrityMapSize: this.integrityMap.size,
+      networkIntegrityMapSize: this.networkIntegrityMap.size
+    };
+  }
+
   private captureBaselineContent(): void {
-    // 捕获页面初始状态的基准内容
-    this.originalPageContent = document.documentElement.outerHTML;
-    this.baselineChecksum = this.calculateChecksum(this.originalPageContent);
-    
-    // 存储关键文本的基准状态
-    const criticalTexts = this.extractCriticalTexts();
-    criticalTexts.forEach((text, index) => {
-      this.setIntegrity(`critical-text-${index}`, text);
-    });
+    // 确保页面完全加载后再捕获基准内容
+    if (document.readyState !== 'complete') {
+      if (this.debugMode) {
+        this.safeLog('log', '⏳ 等待页面完全加载...', document.readyState);
+      }
+      setTimeout(() => this.captureBaselineContent(), 500);
+      return;
+    }
+
+    // 确保DOM已经渲染完成
+    if (!document.body || document.body.children.length === 0) {
+      if (this.debugMode) {
+        this.safeLog('log', '⏳ 等待DOM渲染完成...');
+      }
+      setTimeout(() => this.captureBaselineContent(), 500);
+      return;
+    }
+
+    try {
+      // 捕获页面初始状态的基准内容
+      this.originalPageContent = document.documentElement.outerHTML;
+      this.baselineChecksum = this.calculateChecksum(this.originalPageContent);
+      
+      // 验证基准内容是否有效
+      if (!this.originalPageContent || this.originalPageContent.length < 100) {
+        if (this.debugMode) {
+          this.safeLog('warn', '⚠️ 基准内容无效，重新尝试捕获...');
+        }
+        setTimeout(() => this.captureBaselineContent(), 1000);
+        return;
+      }
+      
+      if (this.debugMode) {
+        this.safeLog('log', '📸 基准内容已捕获:', {
+          length: this.originalPageContent.length,
+          checksum: this.baselineChecksum.substring(0, 16) + '...',
+          criticalTexts: this.extractCriticalTexts()
+        });
+      }
+      
+      // 存储关键文本的基准状态
+      const criticalTexts = this.extractCriticalTexts();
+      criticalTexts.forEach((text, index) => {
+        this.setIntegrity(`critical-text-${index}`, text);
+      });
+    } catch (error) {
+      this.safeLog('error', '❌ 捕获基准内容时出错:', error);
+      // 延迟重试
+      setTimeout(() => this.captureBaselineContent(), 2000);
+    }
   }
 
   private extractCriticalTexts(): string[] {
@@ -113,7 +201,7 @@ class IntegrityChecker {
     // 定期检查网络完整性
     this.networkMonitorInterval = window.setInterval(() => {
       this.checkNetworkIntegrity();
-    }, this.NETWORK_CHECK_INTERVAL);
+    }, this.networkCheckInterval);
   }
 
   private interceptNetworkRequests(): void {
@@ -221,7 +309,7 @@ class IntegrityChecker {
       );
       
       if (hasProxyHeaders) {
-        console.warn('检测到代理服务器，增强监控模式已启用');
+        this.safeLog('warn', '检测到代理服务器，增强监控模式已启用');
         this.enableEnhancedMonitoring();
       }
     }).catch(() => {
@@ -256,23 +344,48 @@ class IntegrityChecker {
   }
 
   private detectContentLengthChanges(): void {
+    // 如果基准内容无效，不进行检查
+    if (!this.originalPageContent || this.originalPageContent.length === 0) {
+      return;
+    }
+
     // 监控页面内容长度变化
     const currentLength = document.documentElement.outerHTML.length;
     const baselineLength = this.originalPageContent.length;
     
-    if (Math.abs(currentLength - baselineLength) > 100) {
+    // 只有当基准长度有效时才进行检查
+    if (baselineLength > 100 && Math.abs(currentLength - baselineLength) > 100) {
       this.handleContentLengthAnomaly(currentLength, baselineLength);
     }
   }
 
   private handleContentLengthAnomaly(current: number, baseline: number): void {
-    console.warn(`检测到内容长度异常: 基准=${baseline}, 当前=${current}`);
+    // 如果基准长度为0，说明基准内容没有正确捕获，忽略这次检查
+    if (baseline === 0) {
+      if (this.debugMode) {
+        this.safeLog('warn', '⚠️ 基准长度为0，重新捕获基准内容');
+      }
+      this.captureBaselineContent();
+      return;
+    }
+
+    this.safeLog('warn', `检测到内容长度异常: 基准=${baseline}, 当前=${current}`);
+    
+    if (this.debugMode) {
+      this.safeLog('log', '🔍 内容长度分析:', {
+        baseline,
+        current,
+        difference: Math.abs(current - baseline),
+        percentage: ((Math.abs(current - baseline) / baseline) * 100).toFixed(2) + '%'
+      });
+    }
+    
     this.checkPageIntegrity();
   }
 
   private checkNetworkIntegrity(): void {
     const now = Date.now();
-    if (now - this.lastNetworkCheck < this.NETWORK_CHECK_INTERVAL) {
+    if (now - this.lastNetworkCheck < this.networkCheckInterval) {
       return;
     }
     this.lastNetworkCheck = now;
@@ -303,13 +416,17 @@ class IntegrityChecker {
     replacedTexts: string[];
     addedContent: string[];
     removedContent: string[];
+    confidence: number;
   } {
     const result = {
       hasProxyTampering: false,
       replacedTexts: [] as string[],
       addedContent: [] as string[],
-      removedContent: [] as string[]
+      removedContent: [] as string[],
+      confidence: 0
     };
+
+    let confidenceScore = 0;
 
     // 检查是否包含代理替换的特征
     const proxySignatures = [
@@ -322,23 +439,141 @@ class IntegrityChecker {
 
     if (proxySignatures.some(sig => sig.test(currentContent))) {
       result.hasProxyTampering = true;
+      confidenceScore += 50;
+      
+      if (this.debugMode) {
+        this.safeLog('log', '🚨 检测到代理特征:', proxySignatures.filter(sig => sig.test(currentContent)));
+      }
     }
 
     // 检查关键文本是否被替换
     const criticalTexts = ['Happy-clo', 'Happy TTS', 'Happy'];
+    const missingTexts: string[] = [];
+    
     criticalTexts.forEach(text => {
       const pattern = new RegExp(text.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'gi');
       if (!pattern.test(currentContent)) {
-        result.replacedTexts.push(text);
-        result.hasProxyTampering = true;
+        missingTexts.push(text);
+        confidenceScore += 20;
       }
     });
+
+    if (missingTexts.length > 0) {
+      result.replacedTexts = missingTexts;
+      result.hasProxyTampering = true;
+      
+      if (this.debugMode) {
+        this.safeLog('log', '⚠️ 检测到缺失的关键文本:', missingTexts);
+      }
+    }
+
+    // 检查内容长度异常
+    const lengthDiff = Math.abs(currentContent.length - this.originalPageContent.length);
+    if (lengthDiff > 100) {
+      confidenceScore += 15;
+      
+      if (this.debugMode) {
+        this.safeLog('log', '📏 内容长度异常:', {
+          original: this.originalPageContent.length,
+          current: currentContent.length,
+          difference: lengthDiff
+        });
+      }
+    }
+
+    // 检查是否只是正常的页面更新
+    const isNormalUpdate = this.checkIfNormalUpdate(currentContent);
+    if (isNormalUpdate) {
+      confidenceScore -= 30; // 降低置信度
+      
+      if (this.debugMode) {
+        this.safeLog('log', '✅ 检测到正常页面更新，降低篡改置信度');
+      }
+    }
+
+    result.confidence = Math.max(0, Math.min(100, confidenceScore));
+
+    if (this.debugMode) {
+      this.safeLog('log', '🔍 内容变化分析结果:', {
+        hasProxyTampering: result.hasProxyTampering,
+        confidence: result.confidence,
+        replacedTexts: result.replacedTexts,
+        lengthDiff
+      });
+    }
 
     return result;
   }
 
+  private checkIfNormalUpdate(currentContent: string): boolean {
+    // 检查是否是正常的页面更新（如动态加载内容）
+    
+    // 1. 检查是否只是添加了内容（而不是替换）
+    if (currentContent.length > this.originalPageContent.length) {
+      const addedContent = currentContent.replace(this.originalPageContent, '');
+      if (addedContent.length > 50) {
+        return true; // 可能是正常的内容添加
+      }
+    }
+
+    // 2. 检查是否包含常见的动态内容标识
+    const dynamicContentPatterns = [
+      /loading/gi,
+      /spinner/gi,
+      /progress/gi,
+      /data-loaded/gi,
+      /dynamic-content/gi
+    ];
+
+    if (dynamicContentPatterns.some(pattern => pattern.test(currentContent))) {
+      return true;
+    }
+
+    // 3. 检查时间戳或随机ID（动态生成的内容）
+    const timestampPatterns = [
+      /\d{13,}/g, // 时间戳
+      /[a-f0-9]{8,}/gi, // 随机ID
+      /t=\d+/gi // URL参数
+    ];
+
+    if (timestampPatterns.some(pattern => pattern.test(currentContent))) {
+      return true;
+    }
+
+    return false;
+  }
+
   private handleProxyTampering(changes: any): void {
-    console.error('检测到代理篡改行为！', changes);
+    // 检查是否是误报
+    if (changes.confidence < 30) {
+      this.falsePositiveCount++;
+      
+      if (this.debugMode) {
+        this.safeLog('log', '🤔 可能的误报，置信度较低:', changes.confidence);
+      }
+      
+      if (this.falsePositiveCount >= this.MAX_FALSE_POSITIVES) {
+        if (this.debugMode) {
+          this.safeLog('warn', '⚠️ 误报次数过多，调整检测策略');
+        }
+        this.adjustDetectionStrategy();
+        return;
+      }
+      return;
+    }
+
+    // 重置误报计数
+    this.falsePositiveCount = 0;
+
+    this.safeLog('error', '🚨 检测到代理篡改行为！', changes);
+    
+    if (this.debugMode) {
+      this.safeLog('log', '🔍 篡改详情:', {
+        confidence: changes.confidence,
+        replacedTexts: changes.replacedTexts,
+        hasProxyTampering: changes.hasProxyTampering
+      });
+    }
     
     // 立即恢复原始内容
     this.performEmergencyRecovery();
@@ -350,15 +585,48 @@ class IntegrityChecker {
     this.showProxyTamperWarning();
   }
 
+  private adjustDetectionStrategy(): void {
+    // 调整检测策略以减少误报
+    this.networkCheckInterval = 3000; // 增加检查间隔
+    
+    if (this.networkMonitorInterval) {
+      clearInterval(this.networkMonitorInterval);
+      this.networkMonitorInterval = window.setInterval(() => {
+        this.checkNetworkIntegrity();
+      }, this.networkCheckInterval);
+    }
+    
+    if (this.debugMode) {
+      this.safeLog('log', '⚙️ 已调整检测策略，减少误报');
+    }
+  }
+
   private performEmergencyRecovery(): void {
     // 紧急恢复模式
     this.isInRecoveryMode = true;
     
-    // 恢复原始页面内容
-    document.documentElement.innerHTML = this.originalPageContent;
+    if (this.debugMode) {
+      this.safeLog('log', '🔄 执行紧急恢复...');
+    }
     
-    // 重新初始化关键元素
-    this.reinitializeCriticalElements();
+    try {
+      // 恢复原始页面内容
+      document.documentElement.innerHTML = this.originalPageContent;
+      
+      // 重新初始化关键元素
+      this.reinitializeCriticalElements();
+      
+      // 5秒后退出恢复模式
+      setTimeout(() => {
+        this.isInRecoveryMode = false;
+        if (this.debugMode) {
+          this.safeLog('log', '✅ 紧急恢复完成，退出恢复模式');
+        }
+      }, 5000);
+    } catch (error) {
+      this.safeLog('error', '❌ 紧急恢复失败:', error);
+      this.isInRecoveryMode = false;
+    }
   }
 
   private reinitializeCriticalElements(): void {
@@ -384,10 +652,10 @@ class IntegrityChecker {
       z-index: 10001;
       font-weight: bold;
       box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-      animation: proxyWarning 2s infinite;
+      animation: networkWarning 2s infinite;
     `;
     warning.innerHTML = `
-      <div style="font-size: 1.2em; margin-bottom: 5px;">🚨 代理篡改检测</div>
+      <div style="font-size: 1.2em; margin-bottom: 5px;">🚨 网络篡改检测</div>
       <div style="font-size: 0.9em;">检测到通过代理服务器的内容篡改！系统已启动紧急恢复模式。</div>
     `;
     document.body.prepend(warning);
@@ -395,7 +663,7 @@ class IntegrityChecker {
     // 添加动画样式
     const style = document.createElement('style');
     style.textContent = `
-      @keyframes proxyWarning {
+      @keyframes networkWarning {
         0%, 100% { background: linear-gradient(45deg, #ff0000, #ff6600); }
         50% { background: linear-gradient(45deg, #ff6600, #ff0000); }
       }
@@ -409,18 +677,33 @@ class IntegrityChecker {
   }
 
   private checkCriticalTextReplacement(): void {
-    const walker = document.createTreeWalker(
-      document.body,
-      NodeFilter.SHOW_TEXT,
-      null
-    );
+    // 如果正在恢复模式，跳过检查
+    if (this.isInRecoveryMode) {
+      return;
+    }
 
-    let node: Node | null;
-    while ((node = walker.nextNode()) !== null) {
-      const text = node.textContent;
-      if (text) {
-        this.checkProtectedTexts(text, node);
+    // 检查是否在安全的时间窗口内
+    const now = Date.now();
+    if (now - this.lastNetworkCheck < 2000) { // 2秒内不重复检查
+      return;
+    }
+
+    try {
+      const walker = document.createTreeWalker(
+        document.body,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+
+      let node: Node | null;
+      while ((node = walker.nextNode()) !== null) {
+        const text = node.textContent;
+        if (text) {
+          this.checkProtectedTexts(text, node);
+        }
       }
+    } catch (error) {
+      this.safeLog('error', '❌ 检查关键文本替换时出错:', error);
     }
   }
 
@@ -451,6 +734,14 @@ class IntegrityChecker {
     const observer = new MutationObserver((mutations) => {
       if (!this.isInRecoveryMode) {
         mutations.forEach(mutation => {
+          // 检查是否是安全的DOM变化
+          if (this.isSafeDOMChange(mutation)) {
+            if (this.debugMode) {
+              this.safeLog('log', '✅ 检测到安全的DOM变化，跳过检查');
+            }
+            return;
+          }
+
           if (mutation.type === 'characterData' || mutation.type === 'childList') {
             this.handleMutation(mutation);
           }
@@ -465,8 +756,8 @@ class IntegrityChecker {
       characterData: true
     });
 
-    // 定期检查
-    setInterval(() => this.checkPageIntegrity(), 2000);
+    // 定期检查，但频率降低
+    setInterval(() => this.checkPageIntegrity(), 5000); // 改为5秒检查一次
   }
 
   private handleMutation(mutation: MutationRecord): void {
@@ -483,6 +774,11 @@ class IntegrityChecker {
   }
 
   private checkProtectedTexts(text: string, node: Node): void {
+    // 检查是否是安全的文本变化
+    if (this.isSafeTextChange(text, node)) {
+      return;
+    }
+
     const protectedPatterns = [
       { original: 'Happy-clo', pattern: /Happy[-]?clo/gi },
       { original: 'Happy TTS', pattern: /Happy\s*TTS/gi },
@@ -494,6 +790,47 @@ class IntegrityChecker {
         this.handleTextTampering(node, text, original);
       }
     });
+  }
+
+  // 检查是否是安全的文本变化
+  private isSafeTextChange(text: string, node: Node): boolean {
+    // 检查父元素是否是安全元素
+    let parent = node.parentElement;
+    while (parent) {
+      const className = parent.className || '';
+      const id = parent.id || '';
+      
+      // 安全元素标识
+      const safeIdentifiers = [
+        'loading', 'spinner', 'progress', 'toast', 'notification',
+        'modal', 'popup', 'tooltip', 'dropdown', 'menu'
+      ];
+      
+      if (safeIdentifiers.some(id => 
+        className.toLowerCase().includes(id) || 
+        id.toLowerCase().includes(id)
+      )) {
+        return true;
+      }
+      
+      parent = parent.parentElement;
+    }
+
+    // 检查文本内容是否是安全的
+    const safeTextPatterns = [
+      /loading/gi,
+      /spinner/gi,
+      /progress/gi,
+      /toast/gi,
+      /notification/gi,
+      /modal/gi,
+      /popup/gi,
+      /tooltip/gi,
+      /dropdown/gi,
+      /menu/gi
+    ];
+
+    return safeTextPatterns.some(pattern => pattern.test(text));
   }
 
   private handleTextTampering(node: Node, tamperText: string, originalText: string): void {
@@ -783,6 +1120,242 @@ class IntegrityChecker {
     setTimeout(() => {
       warning.remove();
     }, 5000);
+  }
+
+  // 重新初始化完整性检查器
+  public reinitialize(): void {
+    if (this.debugMode) {
+      this.safeLog('log', '🔄 重新初始化完整性检查器...');
+    }
+    
+    // 清理现有状态
+    this.isInRecoveryMode = false;
+    this.falsePositiveCount = 0;
+    this.originalPageContent = '';
+    this.baselineChecksum = '';
+    this.integrityMap.clear();
+    this.networkIntegrityMap.clear();
+    this.resetErrorCount(); // 重置错误计数
+    
+    // 重新捕获基准内容
+    this.captureBaselineContent();
+    
+    if (this.debugMode) {
+      this.safeLog('log', '✅ 完整性检查器重新初始化完成');
+    }
+  }
+
+  // 获取错误状态
+  public getErrorStatus(): any {
+    return {
+      errorCount: this.errorCount,
+      maxErrors: this.MAX_ERRORS,
+      lastErrorTime: this.lastErrorTime,
+      errorCooldown: this.ERROR_COOLDOWN,
+      isErrorLimited: this.errorCount >= this.MAX_ERRORS
+    };
+  }
+
+  // 手动重置错误计数
+  public resetErrors(): void {
+    this.resetErrorCount();
+    if (this.debugMode) {
+      this.safeLog('log', '🔄 错误计数已重置');
+    }
+  }
+
+  // 手动捕获基准内容
+  public captureBaseline(): void {
+    if (this.debugMode) {
+      console.log('📸 手动捕获基准内容...');
+    }
+    this.captureBaselineContent();
+  }
+
+  // 暂停完整性检查
+  public pause(): void {
+    this.isInRecoveryMode = true;
+    if (this.debugMode) {
+      console.log('⏸️ 完整性检查已暂停');
+    }
+  }
+
+  // 恢复完整性检查
+  public resume(): void {
+    this.isInRecoveryMode = false;
+    if (this.debugMode) {
+      console.log('▶️ 完整性检查已恢复');
+    }
+  }
+
+  // 安全的错误日志方法
+  private safeLog(level: 'log' | 'warn' | 'error', message: string, data?: any): void {
+    const now = Date.now();
+    
+    // 检查错误数量限制
+    if (level === 'error') {
+      if (this.errorCount >= this.MAX_ERRORS) {
+        // 如果超过最大错误数量，只在冷却期后显示一次
+        if (now - this.lastErrorTime > this.ERROR_COOLDOWN) {
+          console.warn('⚠️ 错误数量过多，已暂停错误输出。请检查页面状态。');
+          this.lastErrorTime = now;
+        }
+        return;
+      }
+      this.errorCount++;
+      this.lastErrorTime = now;
+    }
+
+    // 使用try-catch包装日志输出，防止日志本身出错
+    try {
+      if (data) {
+        console[level](message, data);
+      } else {
+        console[level](message);
+      }
+    } catch (e) {
+      // 如果日志输出失败，静默处理
+    }
+  }
+
+  // 重置错误计数
+  private resetErrorCount(): void {
+    this.errorCount = 0;
+  }
+
+  // 设置全局错误拦截器
+  private setupGlobalErrorHandler(): void {
+    // 拦截未捕获的错误
+    window.addEventListener('error', (event) => {
+      // 检查是否是完整性检查器相关的错误
+      if (event.error && event.error.message && 
+          (event.error.message.includes('integrityCheck') || 
+           event.error.message.includes('blockDangerousExtension'))) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        if (this.debugMode) {
+          this.safeLog('warn', '🛡️ 拦截到完整性检查相关错误:', event.error.message);
+        }
+        return false;
+      }
+    }, true);
+
+    // 拦截未处理的Promise拒绝
+    window.addEventListener('unhandledrejection', (event) => {
+      if (event.reason && typeof event.reason === 'string' && 
+          event.reason.includes('integrityCheck')) {
+        event.preventDefault();
+        
+        if (this.debugMode) {
+          this.safeLog('warn', '🛡️ 拦截到完整性检查Promise错误:', event.reason);
+        }
+        return false;
+      }
+    });
+  }
+
+  // 检查是否是安全的DOM变化
+  private isSafeDOMChange(mutation: MutationRecord): boolean {
+    // 白名单：安全的DOM变化类型
+    const safeSelectors = [
+      '[data-loading]',
+      '[data-spinner]',
+      '[data-progress]',
+      '.loading',
+      '.spinner',
+      '.progress',
+      '.toast',
+      '.notification',
+      '.modal',
+      '.popup',
+      '[class*="loading"]',
+      '[class*="spinner"]',
+      '[class*="progress"]'
+    ];
+
+    // 检查是否是白名单元素的变化
+    if (mutation.type === 'childList') {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const element = node as Element;
+          if (safeSelectors.some(selector => element.matches(selector))) {
+            return true;
+          }
+        }
+      }
+    }
+
+    // 检查是否是动态内容加载
+    if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+      const addedContent = Array.from(mutation.addedNodes)
+        .map(node => node.textContent || '')
+        .join('');
+      
+      // 检查是否包含动态内容标识
+      const dynamicPatterns = [
+        /loading/gi,
+        /spinner/gi,
+        /progress/gi,
+        /toast/gi,
+        /notification/gi,
+        /modal/gi,
+        /popup/gi
+      ];
+      
+      if (dynamicPatterns.some(pattern => pattern.test(addedContent))) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // 完全禁用完整性检查
+  public disable(): void {
+    this.isInRecoveryMode = true;
+    this.proxyDetectionEnabled = false;
+    
+    // 清理所有定时器
+    if (this.recoveryInterval) {
+      clearInterval(this.recoveryInterval);
+      this.recoveryInterval = null;
+    }
+    if (this.networkMonitorInterval) {
+      clearInterval(this.networkMonitorInterval);
+      this.networkMonitorInterval = null;
+    }
+    
+    if (this.debugMode) {
+      this.safeLog('log', '🚫 完整性检查已完全禁用');
+    }
+  }
+
+  // 检查是否已禁用
+  public isDisabled(): boolean {
+    return this.isInRecoveryMode && !this.proxyDetectionEnabled;
+  }
+
+  // 安全的DOM操作包装器
+  private safeDOMOperation(operation: () => void): void {
+    try {
+      operation();
+    } catch (error) {
+      this.safeLog('error', '❌ DOM操作失败:', error);
+      // 不抛出错误，避免影响页面正常功能
+    }
+  }
+
+  // 安全的文本恢复
+  private safeTextRecovery(node: Node, originalText: string): void {
+    this.safeDOMOperation(() => {
+      if (node.textContent && node.textContent !== originalText) {
+        node.textContent = originalText;
+        if (this.debugMode) {
+          this.safeLog('log', '✅ 文本已安全恢复:', originalText);
+        }
+      }
+    });
   }
 }
 
