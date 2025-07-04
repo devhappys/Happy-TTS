@@ -227,7 +227,7 @@ describe('TOTP密钥调试测试', () => {
       
       // URL应该被正确编码
       expect(otpauthUrl).toContain('test_user_com'); // 特殊字符被替换为下划线
-      expect(otpauthUrl).toContain('Happy_TTS___Co_'); // 特殊字符被替换为下划线
+      expect(otpauthUrl).toContain('Happy-TTS---Co-'); // 特殊字符被替换为中划线
       expect(otpauthUrl).toContain('secret=' + secret); // 密钥应该保持不变
     });
   });
@@ -319,7 +319,7 @@ describe('TOTP密钥调试测试', () => {
       
       // 验证所有必要参数都存在
       expect(params.get('secret')).toBe(secret);
-      expect(params.get('issuer')).toBe('Happy_TTS');
+      expect(params.get('issuer')).toBe('Happy-TTS');
       expect(params.get('algorithm')).toBe('SHA1');
       expect(params.get('digits')).toBe('6');
       expect(params.get('period')).toBe('30');
