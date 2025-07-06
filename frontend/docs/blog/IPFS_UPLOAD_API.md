@@ -1,7 +1,6 @@
 ---
 slug: ipfs-upload-api
 title: IPFS 图片上传 API
-authors: [happy-tts]
 tags: [api, ipfs, upload, image]
 ---
 
