@@ -1,8 +1,17 @@
+---
+slug: media-social-life-apis
+title: 媒体解析、社交媒体和生活信息 API 文档
+authors: [happy-tts]
+tags: [api, media, social, life-info]
+---
+
 # 媒体解析、社交媒体和生活信息 API 文档
 
 ## 概述
 
 本文档描述了 Happy-TTS 后端提供的媒体解析、社交媒体和生活信息 API 接口。这些 API 提供了音乐视频解析、热搜查询和生活信息查询等功能。
+
+<!--truncate-->
 
 ## 基础信息
 

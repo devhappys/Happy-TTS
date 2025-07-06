@@ -2,6 +2,8 @@
 title: TOTP 二次验证功能演示
 date: 2025-06-24
 slug: demo-totp
+authors: [happy-tts]
+tags: [security, totp, demo, feature]
 ---
 
 # TOTP 二次验证功能演示
