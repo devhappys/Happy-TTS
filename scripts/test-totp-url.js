@@ -1,4 +1,4 @@
-import { TOTPService } from './services/totpService';
+const { TOTPService } = require('../src/services/totpService');
 
 /**
  * 测试TOTP otpauth URL格式
@@ -42,7 +42,6 @@ function testOTPAuthURL() {
                 console.log(`      - 周期: ${match[7]}秒`);
             } else {
                 console.log(`   ❌ URL格式错误`);
-                console.log(`   🔍 实际URL: ${otpauthUrl}`);
             }
             
             // 验证必要参数
@@ -56,7 +55,7 @@ function testOTPAuthURL() {
             }
             
         } catch (error) {
-            console.log(`   ❌ 生成失败: ${error}`);
+            console.log(`   ❌ 生成失败: ${error.message}`);
         }
         
         console.log('');
