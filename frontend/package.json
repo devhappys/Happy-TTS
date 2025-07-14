@@ -46,7 +46,7 @@
     "crypto-js": "^4.2.0",
     "dompurify": "^3.2.6",
     "express-rate-limit": "^7.5.0",
-    "framer-motion": "^12.23.0",
+    "framer-motion": "^12.23.3",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.525.0",
     "prismjs": "^1.30.0",
