@@ -114,11 +114,9 @@ async function recreateContainer(conn, containerName, imageUrl) {
   let cmd = `docker run -d --name ${containerName} `;
   // 环境变量（原有）
   (info.Config.Env || []).forEach(e => { cmd += `-e \"${e}\" `; });
-  // 环境变量（本地继承，HAPPY_TTS_ 或 TTS_ 开头）
+  // 继承所有本地环境变量
   Object.entries(process.env).forEach(([k, v]) => {
-    if (/^(HAPPY_TTS_|TTS_)/.test(k)) {
-      cmd += `-e \"${k}=${v}\" `;
-    }
+    cmd += `-e "${k}=${v}" `;
   });
   // 端口
   const pb = info.HostConfig.PortBindings || {};
