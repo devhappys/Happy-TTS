@@ -48,7 +48,7 @@ Happy-TTS 是一个基于 OpenAI TTS 技术的文本转语音服务，提供高�
 
 ## API 基础信息
 
-- **基础 URL**: `https://tts-api.hapxs.com`
+- **基础 URL**: `https://api.hapxs.com`
 - **认证方式**: Bearer Token
 - **数据格式**: JSON
 - **字符编码**: UTF-8

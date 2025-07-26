@@ -26,7 +26,7 @@ Happy-TTS 提供完整的用户管理功能，包括用户注册、登录、信�
 ### 请求示例
 
 ```bash
-curl -X POST https://tts-api.hapxs.com/api/auth/register \
+curl -X POST https://api.hapxs.com/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "username": "newuser",
@@ -74,7 +74,7 @@ curl -X POST https://tts-api.hapxs.com/api/auth/register \
 ### 请求示例
 
 ```bash
-curl -X POST https://tts-api.hapxs.com/api/auth/login \
+curl -X POST https://api.hapxs.com/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "username": "newuser",
@@ -115,7 +115,7 @@ curl -X POST https://tts-api.hapxs.com/api/auth/login \
 ### 请求示例
 
 ```bash
-curl -X GET https://tts-api.hapxs.com/api/auth/me \
+curl -X GET https://api.hapxs.com/api/auth/me \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -160,7 +160,7 @@ curl -X GET https://tts-api.hapxs.com/api/auth/me \
 ### 请求示例
 
 ```bash
-curl -X GET https://tts-api.hapxs.com/api/admin/users \
+curl -X GET https://api.hapxs.com/api/admin/users \
   -H "Authorization: Bearer ADMIN_TOKEN"
 ```
 
@@ -213,7 +213,7 @@ curl -X GET https://tts-api.hapxs.com/api/admin/users \
 ### 请求示例
 
 ```bash
-curl -X POST https://tts-api.hapxs.com/api/admin/users \
+curl -X POST https://api.hapxs.com/api/admin/users \
   -H "Authorization: Bearer ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -265,7 +265,7 @@ curl -X POST https://tts-api.hapxs.com/api/admin/users \
 ### 请求示例
 
 ```bash
-curl -X PUT https://tts-api.hapxs.com/api/admin/users/user_123456 \
+curl -X PUT https://api.hapxs.com/api/admin/users/user_123456 \
   -H "Authorization: Bearer ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -307,7 +307,7 @@ curl -X PUT https://tts-api.hapxs.com/api/admin/users/user_123456 \
 ### 请求示例
 
 ```bash
-curl -X DELETE https://tts-api.hapxs.com/api/admin/users/user_123456 \
+curl -X DELETE https://api.hapxs.com/api/admin/users/user_123456 \
   -H "Authorization: Bearer ADMIN_TOKEN"
 ```
 
