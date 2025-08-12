@@ -74,7 +74,7 @@
     "react-syntax-highlighter": "^15.6.1",
     "react-toastify": "^11.0.5",
     "rollup": "^4.45.1",
-    "swagger-ui-react": "^5.27.0",
+    "swagger-ui-react": "^5.27.1",
     "tailwind-merge": "^3.3.1",
     "validator": "^13.15.15"
   },
