@@ -104,7 +104,7 @@
     "postcss": "^8.5.6",
     "react-email": "4.2.8",
     "rollup-plugin-visualizer": "^6.0.3",
-    "tailwind-scrollbar": "^3.1.0",
+    "tailwind-scrollbar": "^4.0.2",
     "tailwindcss": "^3.4.17",
     "terser": "^5.43.0",
     "typescript": "^5.0.2",
