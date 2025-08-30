@@ -101,7 +101,7 @@
     "openai": "^5.12.2",
     "path-to-regexp": "^8.2.0",
     "qrcode": "^1.5.4",
-    "react-syntax-highlighter": "^15.6.1",
+    "react-syntax-highlighter": "^15.6.6",
     "resend": "^6.0.1",
     "serve": "^14.2.1",
     "socks-proxy-agent": "^8.0.5",
