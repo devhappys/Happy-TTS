@@ -41,26 +41,25 @@ jobs:
       matrix:
         node-version: [20.x]
         platform: [windows, linux, macos]
-        exclude:
-          - platform: macos
-            node-version: 20.x
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@main
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@main
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: "npm"
-          cache-dependency-path: |
-            package-lock.json
 
       - name: Set Node.js memory limits
         run: |
           echo "NODE_MEMORY_OPTIONS=--max-old-space-size=8192" >> $GITHUB_ENV
-          echo "NPM_CONFIG_CACHE=/tmp/.npm" >> $GITHUB_ENV
+          echo "PNPM_CONFIG_CACHE=/tmp/.pnpm" >> $GITHUB_ENV
           echo "ROLLUP_SKIP_NATIVE_DEPENDENCIES=true" >> $GITHUB_ENV
           echo "MEMORY=8192M" >> $GITHUB_ENV
           echo "NODE_MEMORY=8192" >> $GITHUB_ENV
@@ -69,60 +68,50 @@ jobs:
 
       - name: Clean node_modules and lock
         run: |
-          rm -rf node_modules package-lock.json
+          rm -rf node_modules pnpm-lock.yaml
           rm -rf dist dist-obfuscated
 
-      - name: Cache node_modules and npm cache
-        uses: actions/cache@main
-        with:
-          path: |
-            node_modules
-            /tmp/.npm
-          key: ${{ runner.os }}-node${{ matrix.node-version }}-backend-modules-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node${{ matrix.node-version }}-backend-modules-
 
       - name: Install dependencies with retry
         run: |
-          npm install -g npm@latest
-          npm install --no-optional --no-audit --no-fund
+          pnpm install --no-optional
           # Install pkg globally for executable building
-          npm install -g pkg@latest
+          pnpm add -g pkg@latest
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Backend Build Analysis
         run: |
-          echo "🚀 开始后端构建分析..."
+          echo " 开始后端构建分析..."
 
           # 创建后端分析目录
           mkdir -p backend-build-analysis
 
           # 记录构建开始时间
-          echo "⏰ 构建开始时间: $(date)" > backend-build-analysis/build-timeline.log
-          echo "📊 开始后端构建分析..." >> backend-build-analysis/build-timeline.log
+          echo " 构建开始时间: $(date)" > backend-build-analysis/build-timeline.log
+          echo " 开始后端构建分析..." >> backend-build-analysis/build-timeline.log
 
       - name: Build backend with TypeScript compilation
         run: |
-          echo "🔨 开始后端 TypeScript 编译..."
+          echo " 开始后端 TypeScript 编译..."
 
           # 编译 TypeScript
-          npm run build:backend:clean
+          pnpm run build:backend:clean
 
           # 记录编译结果
-          echo "✅ TypeScript 编译完成" >> backend-build-analysis/build-timeline.log
-          echo "📁 编译输出目录: dist/" >> backend-build-analysis/build-timeline.log
+          echo " TypeScript 编译完成" >> backend-build-analysis/build-timeline.log
+          echo " 编译输出目录: dist/" >> backend-build-analysis/build-timeline.log
 
           # 分析编译后的文件
-          echo "📊 编译文件分析:" >> backend-build-analysis/build-timeline.log
+          echo " 编译文件分析:" >> backend-build-analysis/build-timeline.log
           find dist/ -name "*.js" -exec du -h {} \; | sort -hr >> backend-build-analysis/build-timeline.log
 
           # 检查主入口文件
           if [ -f "dist/app.js" ]; then
-            echo "✅ 主入口文件 dist/app.js 存在" >> backend-build-analysis/build-timeline.log
-            echo "📏 主文件大小: $(du -h dist/app.js | cut -f1)" >> backend-build-analysis/build-timeline.log
+            echo " 主入口文件 dist/app.js 存在" >> backend-build-analysis/build-timeline.log
+            echo " 主文件大小: $(du -h dist/app.js | cut -f1)" >> backend-build-analysis/build-timeline.log
           else
-            echo "❌ 主入口文件 dist/app.js 不存在" >> backend-build-analysis/build-timeline.log
+            echo " 主入口文件 dist/app.js 不存在" >> backend-build-analysis/build-timeline.log
             exit 1
           fi
         env:
@@ -130,90 +119,90 @@ jobs:
 
       - name: Backend Bundle Analysis
         run: |
-          echo "📊 开始后端包分析..."
+          echo " 开始后端包分析..."
 
           # 分析构建产物
-          echo "🔍 分析构建产物..."
+          echo " 分析构建产物..."
 
           # 检查 dist 目录结构
-          echo "📁 构建目录结构:" > backend-build-analysis/bundle-structure.log
+          echo " 构建目录结构:" > backend-build-analysis/bundle-structure.log
           find dist/ -type f -exec du -h {} \; | sort -hr >> backend-build-analysis/bundle-structure.log
 
           # 分析 JavaScript 文件
-          echo "📦 JavaScript 文件分析:" > backend-build-analysis/js-analysis.log
+          echo " JavaScript 文件分析:" > backend-build-analysis/js-analysis.log
           find dist/ -name "*.js" -exec du -h {} \; | sort -hr >> backend-build-analysis/js-analysis.log
 
           # 分析依赖关系
-          echo "🔗 依赖关系分析:" > backend-build-analysis/dependency-analysis.log
-          npm list --depth=0 >> backend-build-analysis/dependency-analysis.log
+          echo " 依赖关系分析:" > backend-build-analysis/dependency-analysis.log
+          pnpm list --depth=0 >> backend-build-analysis/dependency-analysis.log
 
           # 检查代码混淆效果
           if [ -d "dist-obfuscated" ]; then
-            echo "🔒 代码混淆分析:" > backend-build-analysis/obfuscation-analysis.log
+            echo " 代码混淆分析:" > backend-build-analysis/obfuscation-analysis.log
             find dist-obfuscated/ -name "*.js" -exec du -h {} \; | sort -hr >> backend-build-analysis/obfuscation-analysis.log
           fi
 
       - name: Backend Performance Analysis
         run: |
-          echo "⚡ 开始后端性能分析..."
+          echo " 开始后端性能分析..."
 
           # 分析构建性能
-          echo "⏱️ 构建性能分析:" > backend-build-analysis/performance.log
+          echo " 构建性能分析:" > backend-build-analysis/performance.log
 
           # 检查文件压缩效果
-          echo "🗜️ 文件压缩分析:" >> backend-build-analysis/performance.log
+          echo " 文件压缩分析:" >> backend-build-analysis/performance.log
           find dist/ -name "*.js" -exec sh -c 'echo "=== $1 ==="; echo "原始大小: $(wc -c < "$1") bytes"; echo "Gzip 大小: $(gzip -c "$1" | wc -c) bytes"; echo "压缩率: $(( 100 - $(gzip -c "$1" | wc -c) * 100 / $(wc -c < "$1") ))%"' _ {} \; >> backend-build-analysis/performance.log
 
           # 分析加载性能
-          echo "📈 加载性能分析:" >> backend-build-analysis/performance.log
+          echo " 加载性能分析:" >> backend-build-analysis/performance.log
           echo "总文件数: $(find dist/ -type f | wc -l)" >> backend-build-analysis/performance.log
           echo "总大小: $(du -sh dist/ | cut -f1)" >> backend-build-analysis/performance.log
 
           # 检查内存使用
-          echo "💾 内存使用分析:" >> backend-build-analysis/performance.log
+          echo " 内存使用分析:" >> backend-build-analysis/performance.log
           free -h >> backend-build-analysis/performance.log
 
       - name: Backend Security Analysis
         run: |
-          echo "🔒 开始后端安全分析..."
+          echo " 开始后端安全分析..."
 
           # 分析安全相关配置
-          echo "🛡️ 安全配置分析:" > backend-build-analysis/security.log
+          echo " 安全配置分析:" > backend-build-analysis/security.log
 
           # 检查敏感信息泄露
-          echo "🔍 敏感信息检查:" >> backend-build-analysis/security.log
+          echo " 敏感信息检查:" >> backend-build-analysis/security.log
           grep -r -i "password\|secret\|key\|token" dist/ --exclude-dir=node_modules || echo "未发现敏感信息" >> backend-build-analysis/security.log
 
           # 检查硬编码的 URL
-          echo "🌐 硬编码 URL 检查:" >> backend-build-analysis/security.log
+          echo " 硬编码 URL 检查:" >> backend-build-analysis/security.log
           grep -r "http://\|https://" dist/ | grep -v "localhost" | head -10 >> backend-build-analysis/security.log || echo "未发现硬编码 URL" >> backend-build-analysis/security.log
 
           # 检查环境变量使用
-          echo "🔧 环境变量检查:" >> backend-build-analysis/security.log
+          echo " 环境变量检查:" >> backend-build-analysis/security.log
           grep -r "process\.env" dist/ | head -10 >> backend-build-analysis/security.log || echo "未发现环境变量使用" >> backend-build-analysis/security.log
 
       - name: Backend Quality Analysis
         run: |
-          echo "📋 开始后端质量分析..."
+          echo " 开始后端质量分析..."
 
           # 代码质量分析
-          echo "📊 代码质量分析:" > backend-build-analysis/quality.log
+          echo " 代码质量分析:" > backend-build-analysis/quality.log
 
           # 检查 TypeScript 编译错误
-          echo "📝 TypeScript 检查:" >> backend-build-analysis/quality.log
-          npx tsc --noEmit --project tsconfig.json 2>&1 >> backend-build-analysis/quality.log || echo "TypeScript 检查发现问题" >> backend-build-analysis/quality.log
+          echo " TypeScript 检查:" >> backend-build-analysis/quality.log
+          pnpm exec tsc --noEmit --project tsconfig.json 2>&1 >> backend-build-analysis/quality.log || echo "TypeScript 检查发现问题" >> backend-build-analysis/quality.log
 
           # 检查未使用的代码
-          echo "🗑️ 未使用代码检查:" >> backend-build-analysis/quality.log
-          npx depcheck 2>&1 >> backend-build-analysis/quality.log || echo "未使用代码检查完成" >> backend-build-analysis/quality.log
+          echo " 未使用代码检查:" >> backend-build-analysis/quality.log
+          pnpm exec depcheck 2>&1 >> backend-build-analysis/quality.log || echo "未使用代码检查完成" >> backend-build-analysis/quality.log
 
           # 检查代码复杂度
-          echo "📊 代码复杂度检查:" >> backend-build-analysis/quality.log
-          npx complexity-report src/ 2>&1 | head -10 >> backend-build-analysis/quality.log || echo "复杂度分析完成" >> backend-build-analysis/quality.log
+          echo " 代码复杂度检查:" >> backend-build-analysis/quality.log
+          pnpm exec complexity-report src/ 2>&1 | head -10 >> backend-build-analysis/quality.log || echo "复杂度分析完成" >> backend-build-analysis/quality.log
 
       - name: Build executable for ${{ matrix.platform }}
         run: |
-          echo "🔨 开始构建 ${{ matrix.platform }} 可执行文件..."
+          echo " 开始构建 ${{ matrix.platform }} 可执行文件..."
 
           # 创建可执行文件输出目录
           mkdir -p executables
@@ -233,12 +222,12 @@ jobs:
               EXTENSION=""
               ;;
             *)
-              echo "❌ 未知平台: ${{ matrix.platform }}"
+              echo " 未知平台: ${{ matrix.platform }}"
               exit 1
               ;;
           esac
 
-          echo "🎯 目标平台: $TARGET" >> backend-build-analysis/build-timeline.log
+          echo " 目标平台: $TARGET" >> backend-build-analysis/build-timeline.log
 
           # 创建 pkg 配置文件来解决模块解析问题
           cat > pkg-config.json << EOF
@@ -268,10 +257,10 @@ jobs:
 
           # 检查构建结果
           if [ -f "executables/happy-tts-${{ matrix.platform }}$EXTENSION" ]; then
-            echo "✅ ${{ matrix.platform }} 可执行文件构建成功" >> backend-build-analysis/build-timeline.log
-            echo "📏 文件大小: $(du -h executables/happy-tts-${{ matrix.platform }}$EXTENSION | cut -f1)" >> backend-build-analysis/build-timeline.log
+            echo " ${{ matrix.platform }} 可执行文件构建成功" >> backend-build-analysis/build-timeline.log
+            echo " 文件大小: $(du -h executables/happy-tts-${{ matrix.platform }}$EXTENSION | cut -f1)" >> backend-build-analysis/build-timeline.log
           else
-            echo "❌ ${{ matrix.platform }} 可执行文件构建失败" >> backend-build-analysis/build-timeline.log
+            echo " ${{ matrix.platform }} 可执行文件构建失败" >> backend-build-analysis/build-timeline.log
             exit 1
           fi
         env:
@@ -279,7 +268,7 @@ jobs:
 
       - name: Test executable functionality
         run: |
-          echo "🧪 测试可执行文件功能..."
+          echo " 测试可执行文件功能..."
 
           # 创建测试目录
           mkdir -p test-executable
@@ -298,29 +287,29 @@ jobs:
           EOF
 
           # 测试可执行文件是否能启动（超时 30 秒）
-          echo "🚀 启动测试..."
+          echo " 启动测试..."
           timeout 30s ./happy-tts-${{ matrix.platform }}$(if [ "${{ matrix.platform }}" = "windows" ]; then echo ".exe"; fi) --help || echo "可执行文件启动测试完成"
 
-          echo "✅ 可执行文件功能测试完成" >> ../backend-build-analysis/build-timeline.log
+          echo " 可执行文件功能测试完成" >> ../backend-build-analysis/build-timeline.log
         continue-on-error: true
 
       - name: Generate Backend Analysis Report
         run: |
-          echo "📄 生成后端分析报告..."
+          echo " 生成后端分析报告..."
 
           # 生成实时分析报告
           cat > backend-build-analysis/backend-analysis-report.md << EOF
-          # 🚀 后端构建实时分析报告
+          # 后端构建实时分析报告
 
           **构建时间**: $(date)  
           **Node.js 版本**: $(node --version)  
-          **NPM 版本**: $(npm --version)  
+          **pnpm 版本**: $(pnpm --version)  
           **目标平台**: ${{ matrix.platform }}
           **pkg 版本**: $(pkg --version)
 
           ---
 
-          ## ⏰ 构建时间线
+          ## 构建时间线
 
           \`\`\`bash
           $(cat backend-build-analysis/build-timeline.log 2>/dev/null || echo "构建时间线日志不可用")
@@ -416,7 +405,7 @@ jobs:
           echo "📄 后端分析报告已生成"
 
       - name: Upload backend artifacts
-        uses: actions/upload-artifact@main
+        uses: actions/upload-artifact@v4
         with:
           name: backend-executables-${{ matrix.platform }}
           path: |
@@ -433,7 +422,7 @@ jobs:
 
     steps:
       - name: Download all platform artifacts
-        uses: actions/download-artifact@main
+        uses: actions/download-artifact@v4
         with:
           pattern: backend-executables-*
           merge-multiple: true
@@ -492,7 +481,7 @@ jobs:
           EOF
 
       - name: Upload release package
-        uses: actions/upload-artifact@main
+        uses: actions/upload-artifact@v4
         with:
           name: happy-tts-backend-release
           path: |
