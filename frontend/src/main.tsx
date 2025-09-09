@@ -13,7 +13,7 @@ function decryptAES256(encryptedData: string, iv: string, key: string): string {
     const keyHash = CryptoJS.SHA256(key);
     const ivBytes = CryptoJS.enc.Hex.parse(iv);
     const encryptedBytes = CryptoJS.enc.Hex.parse(encryptedData);
-    
+
     const decrypted = CryptoJS.AES.decrypt(
       { ciphertext: encryptedBytes },
       keyHash,
@@ -23,7 +23,7 @@ function decryptAES256(encryptedData: string, iv: string, key: string): string {
         padding: CryptoJS.pad.Pkcs7
       }
     );
-    
+
     return decrypted.toString(CryptoJS.enc.Utf8);
   } catch (error) {
     console.error('AES-256 解密失败:', error);
@@ -82,7 +82,7 @@ class DebugConsoleManager {
     this.attempts = this.loadAttempts();
     this.lockoutUntil = this.loadLockoutUntil();
     this.isDebugMode = this.loadDebugMode();
-    
+
     // 启动配置同步
     this.startConfigSync();
   }
@@ -174,7 +174,7 @@ class DebugConsoleManager {
     try {
       const token = localStorage.getItem('token');
       if (!token) return false;
-      
+
       // 简单的token存在性检查，实际项目中可能需要更复杂的验证
       return token.length > 10; // 假设有效token长度大于10
     } catch (error) {
@@ -196,7 +196,7 @@ class DebugConsoleManager {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json'
       };
-      
+
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
@@ -205,21 +205,21 @@ class DebugConsoleManager {
       let response = await fetchWithAuthRetry('/api/debug-console/configs/encrypted', {
         headers
       }, 2);
-      
+
       if (response.status === 401) {
         console.log('⚠️ 同步配置需要管理员权限，跳过自动同步');
         return;
       }
-      
+
       // 如果返回403，说明用户没有权限，停止后续请求
       if (response.status === 403) {
         console.log('🚫 用户没有调试控制台权限，停止配置同步');
         return;
       }
-      
+
       let data: any = null;
       let configs: any[] = [];
-      
+
       if (response.ok) {
         data = await response.json();
         if (data.success && data.data && data.iv) {
@@ -227,7 +227,7 @@ class DebugConsoleManager {
             // 解密配置数据
             const decryptedJson = decryptAES256(data.data, data.iv, token!);
             const decryptedData = JSON.parse(decryptedJson);
-            
+
             if (Array.isArray(decryptedData)) {
               configs = decryptedData;
             }
@@ -236,19 +236,19 @@ class DebugConsoleManager {
           }
         }
       }
-      
+
       // 如果加密配置获取失败，回退到未加密配置（401 最多重试两次）
       if (configs.length === 0) {
         response = await fetchWithAuthRetry('/api/debug-console/configs', {
           headers
         }, 2);
-        
+
         // 如果返回403，说明用户没有权限，停止后续请求
         if (response.status === 403) {
           console.log('🚫 用户没有调试控制台权限，停止配置同步');
           return;
         }
-        
+
         if (response.ok) {
           data = await response.json();
           if (data.success && data.data && data.data.length > 0) {
@@ -256,11 +256,11 @@ class DebugConsoleManager {
           }
         }
       }
-      
+
       if (configs.length > 0) {
         // 获取默认配置或第一个配置
         const backendConfig = configs.find((config: any) => config.group === 'default') || configs[0];
-        
+
         // 检查配置是否有变化
         const oldConfig = { ...this.config };
         const newConfig = {
@@ -272,27 +272,27 @@ class DebugConsoleManager {
           lockoutDuration: backendConfig.lockoutDuration,
           updatedAt: new Date()
         };
-        
+
         // 检查关键配置是否发生变化
-        const configChanged = 
+        const configChanged =
           oldConfig.enabled !== newConfig.enabled ||
           oldConfig.keySequence !== newConfig.keySequence ||
           oldConfig.verificationCode !== newConfig.verificationCode ||
           oldConfig.maxAttempts !== newConfig.maxAttempts ||
           oldConfig.lockoutDuration !== newConfig.lockoutDuration;
-        
+
         // 更新配置
         this.config = newConfig;
         this.saveConfig();
-        
+
         if (configChanged) {
           console.log('🔄 调试控制台配置已更新，重新初始化相关状态');
-          
+
           // 如果配置被禁用，清除调试模式
           if (!this.config.enabled && this.isDebugMode) {
             this.disableDebugMode();
           }
-          
+
           // 如果按键序列发生变化，清空当前缓冲区并重置状态
           if (oldConfig.keySequence !== newConfig.keySequence) {
             this.keyBuffer = '';
@@ -300,10 +300,10 @@ class DebugConsoleManager {
             console.log(`   新序列: ${newConfig.keySequence}`);
             console.log(`   旧序列: ${oldConfig.keySequence}`);
           }
-          
+
           // 如果最大尝试次数或锁定时间发生变化，重置尝试次数
-          if (oldConfig.maxAttempts !== newConfig.maxAttempts || 
-              oldConfig.lockoutDuration !== newConfig.lockoutDuration) {
+          if (oldConfig.maxAttempts !== newConfig.maxAttempts ||
+            oldConfig.lockoutDuration !== newConfig.lockoutDuration) {
             this.attempts = 0;
             this.saveAttempts();
             console.log('🔄 尝试次数限制已更新，尝试次数已重置');
@@ -326,10 +326,10 @@ class DebugConsoleManager {
       console.log('[调试控制台] 用户非管理员，跳过配置同步机制启动');
       return;
     }
-    
+
     // 立即同步一次
     this.syncConfigFromBackend();
-    
+
     // 每5分钟同步一次配置
     const syncInterval = setInterval(() => {
       this.syncConfigFromBackend().catch(() => {
@@ -337,14 +337,14 @@ class DebugConsoleManager {
         clearInterval(syncInterval);
       });
     }, 5 * 60 * 1000);
-    
+
     // 监听页面可见性变化，当页面重新可见时同步配置
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
         this.syncConfigFromBackend();
       }
     });
-    
+
     // 监听窗口焦点变化，当窗口重新获得焦点时同步配置
     window.addEventListener('focus', () => {
       this.syncConfigFromBackend();
@@ -356,7 +356,7 @@ class DebugConsoleManager {
     try {
       const token = localStorage.getItem('token');
       if (!token) return false;
-      
+
       // 简单的token存在性检查，实际项目中可能需要更复杂的验证
       return token.length > 10; // 假设有效token长度大于10
     } catch (error) {
@@ -371,19 +371,19 @@ class DebugConsoleManager {
       console.log('[调试控制台] 用户非管理员，跳过手动配置同步');
       return Promise.resolve();
     }
-    
+
     console.log('🔄 手动触发配置同步...');
     return this.syncConfigFromBackend();
   }
 
   public handleKeyPress(key: string): boolean {
     if (!this.config.enabled) return false;
-    
+
     // 检查用户是否为管理员，非管理员用户不处理按键序列
     if (!this.isUserAdmin()) {
       return false;
     }
-    
+
     // 检查是否在锁定状态
     if (this.isLocked()) {
       console.warn('调试控制台已锁定，请稍后再试');
@@ -392,7 +392,7 @@ class DebugConsoleManager {
 
     // 添加到按键缓冲区
     this.keyBuffer += key;
-    
+
     // 保持缓冲区长度不超过序列长度
     if (this.keyBuffer.length > this.config.keySequence.length) {
       this.keyBuffer = this.keyBuffer.slice(-this.config.keySequence.length);
@@ -450,7 +450,7 @@ class DebugConsoleManager {
 
       // 获取当前按键序列
       const keySequence = this.keyBuffer || this.config.keySequence;
-      
+
       // 调用后端 API 验证
       const response = await fetch('/api/debug-console/verify', {
         method: 'POST',
@@ -478,10 +478,10 @@ class DebugConsoleManager {
         this.saveAttempts();
         this.lockoutUntil = 0;
         this.saveLockoutUntil();
-        
+
         // 验证成功后，重置按键缓冲区，确保可以重新触发
         this.keyBuffer = '';
-        
+
         console.log('✅ 调试控制台验证成功！');
         console.log('🔧 调试模式已启用');
         console.log('📝 可用的调试命令:');
@@ -496,7 +496,7 @@ class DebugConsoleManager {
         console.log('  - debug.resetBuffer() - 重置按键缓冲区');
         console.log('  - debug.reactivate() - 重新激活调试控制台');
         console.log('🔧 如果开发者工具未自动打开，请手动按 F12 或 Ctrl+Shift+I');
-        
+
         // 暴露调试接口到全局
         const debugConsoleManager = this;
         (window as any).debug = {
@@ -526,7 +526,7 @@ class DebugConsoleManager {
       } else {
         this.attempts++;
         this.saveAttempts();
-        
+
         if (result.lockoutUntil) {
           this.lockoutUntil = new Date(result.lockoutUntil).getTime();
           this.saveLockoutUntil();
@@ -545,14 +545,14 @@ class DebugConsoleManager {
         this.saveAttempts();
         this.lockoutUntil = 0;
         this.saveLockoutUntil();
-        
+
         // 验证成功后，重置按键缓冲区，确保可以重新触发
         this.keyBuffer = '';
-        
+
         console.log('✅ 调试控制台验证成功（本地模式）！');
         console.log('🔧 调试模式已启用');
         console.log('🔧 如果开发者工具未自动打开，请手动按 F12 或 Ctrl+Shift+I');
-        
+
         // 暴露调试接口到全局
         const debugConsoleManager = this;
         (window as any).debug = {
@@ -582,9 +582,9 @@ class DebugConsoleManager {
       } else {
         this.attempts++;
         this.saveAttempts();
-        
+
         const remainingAttempts = this.config.maxAttempts - this.attempts;
-        
+
         if (remainingAttempts <= 0) {
           this.lockoutUntil = Date.now() + this.config.lockoutDuration;
           this.saveLockoutUntil();
@@ -669,20 +669,20 @@ class DebugConsoleManager {
       const threshold = 160;
       const widthThreshold = window.outerWidth - window.innerWidth > threshold;
       const heightThreshold = window.outerHeight - window.innerHeight > threshold;
-      
+
       // 方法2: 检查控制台是否打开（通过console.log的时间差）
       let devtools = {
         open: false,
         orientation: null as string | null
       };
-      
+
       const start = performance.now();
       console.log('%c', 'color: transparent');
       const end = performance.now();
-      
+
       // 如果console.log执行时间超过100ms，可能开发者工具已打开
       const timeThreshold = end - start > 100;
-      
+
       return widthThreshold || heightThreshold || timeThreshold;
     } catch (error) {
       return false;
@@ -844,7 +844,7 @@ class DebugConsoleManager {
     this.isDebugMode = false;
     this.saveDebugMode();
     delete (window as any).debug;
-    
+
     // 移除开发者工具提示
     const prompt = document.getElementById('debug-console-prompt');
     if (prompt) {
@@ -853,15 +853,15 @@ class DebugConsoleManager {
 
     // 禁用选择功能和右键菜单
     this.toggleSelection(false);
-    
+
     // 立即更新权限状态
     if ((window as any).updateDebugPermissions) {
       (window as any).updateDebugPermissions();
     }
-    
+
     // 重置按键缓冲区，确保可以重新激活
     this.keyBuffer = '';
-    
+
     console.log('🚫 调试模式已禁用');
     console.log('💡 如需重新激活，请重新输入按键序列');
   }
@@ -873,7 +873,7 @@ class DebugConsoleManager {
       console.log('[调试控制台] 用户非管理员，跳过重新激活');
       return;
     }
-    
+
     if (this.canReactivate()) {
       this.keyBuffer = '';
       console.log('🔄 调试控制台已重置，可以重新输入按键序列激活');
@@ -1081,19 +1081,19 @@ function hasDangerousExtension() {
     if (TRUSTED_HOST_PREFIXES.some(prefix => src.startsWith(prefix))) {
       // 信任域名的脚本不计分
     } else {
-    const content = (s.textContent || '').toLowerCase();
-    for (const kw of DANGEROUS_KEYWORDS) {
-      // 仅统计明显特征，避免过短或常见词引发误判
-      if (kw.length < 6) continue;
-      if (src.includes(kw)) {
-        detectedReasons.push(`script标签src命中关键词：${kw}`);
-        confidence += 1;
+      const content = (s.textContent || '').toLowerCase();
+      for (const kw of DANGEROUS_KEYWORDS) {
+        // 仅统计明显特征，避免过短或常见词引发误判
+        if (kw.length < 6) continue;
+        if (src.includes(kw)) {
+          detectedReasons.push(`script标签src命中关键词：${kw}`);
+          confidence += 1;
+        }
+        if (content.includes(kw)) {
+          detectedReasons.push(`script标签内容命中关键词：${kw}`);
+          confidence += 1;
+        }
       }
-      if (content.includes(kw)) {
-        detectedReasons.push(`script标签内容命中关键词：${kw}`);
-        confidence += 1;
-      }
-    }
     }
   }
 
@@ -1251,7 +1251,7 @@ function hasDangerousExtension() {
       detectedReasons.push('MutationObserver监听器可能拦截copy/download');
       confidence += 1;
     }
-  } catch (e) {}
+  } catch (e) { }
 
   // 11. 检查油猴脚本管理器（强信号：立即触发）
   try {
@@ -1275,7 +1275,7 @@ function hasDangerousExtension() {
       detectedReasons.push('检测到油猴特有 unsafeWindow');
       return true;
     }
-  } catch (e) {}
+  } catch (e) { }
 
   // 12. 检查用户脚本内容（弱信号：累加）
   try {
@@ -1318,7 +1318,7 @@ function hasDangerousExtension() {
         }
       }
     }
-  } catch (e) {}
+  } catch (e) { }
 
   // 13. 检查油猴注入的DOM元素（弱信号：累加）
   try {
@@ -1356,7 +1356,7 @@ function hasDangerousExtension() {
         break;
       }
     }
-  } catch (e) {}
+  } catch (e) { }
 
   // 14. 检查油猴的脚本管理器特征（弱信号：累加；隐藏标记为强信号）
   try {
@@ -1386,7 +1386,7 @@ function hasDangerousExtension() {
       detectedReasons.push('window.__violentmonkey__ 命中');
       return true;
     }
-  } catch (e) {}
+  } catch (e) { }
 
   // 若仅有弱信号，则需要至少两个独立命中才拦截
   return confidence >= 2;
@@ -1555,31 +1555,70 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(runDangerousExtensionCheck, 20000);
 });
 
+// FirstVisitVerification页面F12控制台豁免检查
+function isFirstVisitVerificationPage(): boolean {
+  // 检查环境变量开关
+  // const allowF12OnFirstVisit = process.env.REACT_APP_ALLOW_F12_ON_FIRST_VISIT === 'true';
+  const allowF12OnFirstVisit = 'true';
+  if (allowF12OnFirstVisit !== 'true') {
+    return false;
+  }
+
+  // 检查是否为FirstVisitVerification页面
+  const isFirstVisitPage =
+    // 通过组件标记检查
+    !!document.querySelector('[data-component="FirstVisitVerification"]') ||
+    !!document.querySelector('[data-page="FirstVisitVerification"]') ||
+    !!document.querySelector('[data-view="FirstVisitVerification"]') ||
+    // 通过页面内容检查
+    document.body.innerHTML.includes('FirstVisitVerification') ||
+    document.body.innerHTML.includes('欢迎访问') && document.body.innerHTML.includes('Happy TTS') ||
+    // 通过URL路径检查
+    window.location.pathname.includes('first-visit') ||
+    window.location.hash.includes('first-visit') ||
+    // 通过页面标题检查
+    document.title.includes('首次访问') ||
+    document.title.includes('First Visit');
+
+  if (isFirstVisitPage) {
+    console.log('🔧 检测到FirstVisitVerification页面，F12控制台豁免已启用');
+    console.log('🛠️ 环境变量 REACT_APP_ALLOW_F12_ON_FIRST_VISIT =', allowF12OnFirstVisit);
+  }
+
+  return isFirstVisitPage;
+}
+
 // 禁止右键和常见调试快捷键（仅生产环境生效）
 if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
   // 右键菜单事件监听器
   const contextMenuHandler = (e: MouseEvent) => {
     // 检查是否处于调试模式
     const isDebugMode = debugConsoleManager.isDebugModeEnabled();
-    
-    // 在调试模式下允许右键菜单
-    if (isDebugMode) {
+
+    // 检查是否为FirstVisitVerification页面豁免
+    const isFirstVisitExempt = isFirstVisitVerificationPage();
+
+    // 在调试模式下或FirstVisitVerification页面豁免时允许右键菜单
+    if (isDebugMode || isFirstVisitExempt) {
       return;
     }
-    
+
     e.preventDefault();
   };
-  
+
   // 键盘事件监听器
   const keydownHandler = (e: KeyboardEvent) => {
     // 检查是否处于调试模式
     const isDebugMode = debugConsoleManager.isDebugModeEnabled();
-    
-    // 在调试模式下允许F12和开发者工具快捷键
-    if (isDebugMode) {
+
+    // 检查是否为FirstVisitVerification页面豁免
+    const isFirstVisitExempt = isFirstVisitVerificationPage();
+
+    // 在调试模式下或FirstVisitVerification页面豁免时允许F12和开发者工具快捷键
+    if (isDebugMode || isFirstVisitExempt) {
       return;
     }
-    
+
     // F12
     if (e.key === 'F12') e.preventDefault();
     // Ctrl+Shift+I/C/U/J
@@ -1601,12 +1640,12 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
   // 监听调试模式状态变化，动态调整权限
   const checkDebugModeAndUpdatePermissions = () => {
     const isDebugMode = debugConsoleManager.isDebugModeEnabled();
-    
+
     if (isDebugMode) {
       // 调试模式启用时，移除事件监听器以允许F12等快捷键
       window.removeEventListener('contextmenu', contextMenuHandler);
       window.removeEventListener('keydown', keydownHandler);
-      
+
       // 启用选择功能
       document.body.style.userSelect = 'auto';
       document.body.style.setProperty('-webkit-user-select', 'auto');
@@ -1614,23 +1653,23 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production') {
       document.body.style.setProperty('-ms-user-select', 'auto');
       document.body.style.setProperty('-webkit-touch-callout', 'auto');
       document.body.style.setProperty('-khtml-user-select', 'auto');
-      
+
       console.log('🔧 调试模式已启用，F12等快捷键已解锁');
     } else {
       // 调试模式禁用时，重新添加事件监听器
       window.addEventListener('contextmenu', contextMenuHandler);
       window.addEventListener('keydown', keydownHandler);
-      
+
       // 禁用选择功能
       disableSelection();
-      
+
       console.log('🚫 调试模式已禁用，F12等快捷键已锁定');
     }
   };
 
   // 定期检查调试模式状态（每1秒检查一次）
   setInterval(checkDebugModeAndUpdatePermissions, 1000);
-  
+
   // 初始检查
   checkDebugModeAndUpdatePermissions();
 
