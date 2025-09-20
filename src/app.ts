@@ -115,6 +115,7 @@ const execAsync = promisify(exec);
 const allowedOrigins = [
   'https://tts.hapx.one',
   'https://tts.hapxs.com',
+  "http://192.168.10.7:3001",
   'https://api.hapxs.com',
   'http://localhost:3000',
   'http://localhost:3001',
@@ -132,7 +133,7 @@ app.options('/s/*path', (req: Request, res: Response) => {
     res.header('Access-Control-Allow-Origin', '*');
   }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers, Cache-Control');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers, Cache-Control, X-Fingerprint, X-Turnstile-Token');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Max-Age', '86400');
   res.status(200).end();
@@ -174,7 +175,7 @@ app.options('/api/shorturl/*path', (req: Request, res: Response) => {
     res.header('Access-Control-Allow-Origin', '*');
   }
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers, Cache-Control');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Request-Method, Access-Control-Request-Headers, Cache-Control, X-Fingerprint, X-Turnstile-Token');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Max-Age', '86400');
   res.status(200).end();
@@ -348,7 +349,9 @@ app.use(cors({
     'Origin',
     'Access-Control-Request-Method',
     'Access-Control-Request-Headers',
-    'Cache-Control'
+    'Cache-Control',
+    'X-Fingerprint',
+    'X-Turnstile-Token'
   ],
   exposedHeaders: [
     'Content-Length',
@@ -369,12 +372,12 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: [
-        "'self'", 
-        "'unsafe-inline'", 
+        "'self'",
+        "'unsafe-inline'",
         "https://fonts.googleapis.com",
-        "https://challenges.cloudflare.com", 
-        "https://*.cloudflare.com", 
-        "https://js.hcaptcha.com", 
+        "https://challenges.cloudflare.com",
+        "https://*.cloudflare.com",
+        "https://js.hcaptcha.com",
         "https://*.hcaptcha.com"
       ],
       styleSrcElem: [
@@ -383,20 +386,20 @@ app.use(helmet({
         "https://fonts.googleapis.com"
       ],
       fontSrc: [
-        "'self'", 
+        "'self'",
         "https://fonts.gstatic.com",
         "https://fonts.googleapis.com"
       ],
       imgSrc: ["'self'", "data:", "blob:", "https:"],
       scriptSrc: [
-        "'self'", 
-        "'unsafe-inline'", 
+        "'self'",
+        "'unsafe-inline'",
         "'unsafe-eval'",
-        "https://challenges.cloudflare.com", 
-        "https://*.cloudflare.com", 
-        "https://js.hcaptcha.com", 
-        "https://*.hcaptcha.com", 
-        "https://www.google-analytics.com", 
+        "https://challenges.cloudflare.com",
+        "https://*.cloudflare.com",
+        "https://js.hcaptcha.com",
+        "https://*.hcaptcha.com",
+        "https://www.google-analytics.com",
         "https://analytics.google.com",
         "https://www.clarity.ms",
         "https://*.clarity.ms"
@@ -414,11 +417,12 @@ app.use(helmet({
         "https://*.hcaptcha.com"
       ],
       connectSrc: [
-        "'self'", 
-        "https://api.openai.com", 
-        "https://api.hapxs.com", 
-        "http://localhost:3000", 
+        "'self'",
+        "https://api.openai.com",
+        "https://api.hapxs.com",
+        "http://localhost:3000",
         "http://localhost:3001",
+        "http://192.168.10.7:3001",
         "https://api.hcaptcha.com",
         "https://*.hcaptcha.com",
         "https://www.google-analytics.com",
@@ -427,8 +431,8 @@ app.use(helmet({
         "https://*.clarity.ms"
       ],
       frameSrc: [
-        "'self'", 
-        "https://challenges.cloudflare.com", 
+        "'self'",
+        "https://challenges.cloudflare.com",
         "https://*.cloudflare.com",
         "https://js.hcaptcha.com",
         "https://*.hcaptcha.com"

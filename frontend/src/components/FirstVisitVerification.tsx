@@ -46,8 +46,7 @@ export const FirstVisitVerification: React.FC<FirstVisitVerificationProps> = ({
     siteKey: secureSiteKey,
     enabled: secureEnabled
   } = useSecureCaptchaSelection({
-    fingerprint,
-    availableTypes: [CaptchaType.TURNSTILE, CaptchaType.HCAPTCHA]
+    fingerprint
   });
 
   // Turnstile 状态
@@ -70,7 +69,6 @@ export const FirstVisitVerification: React.FC<FirstVisitVerificationProps> = ({
   const [showParticles, setShowParticles] = useState(false);
   const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const deviceCheckRef = useRef({ isMobile: false, isLandscape: false });
-  const [retryCount, setRetryCount] = useState(0);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   // 验证模式状态（基于安全选择结果）
@@ -313,7 +311,7 @@ export const FirstVisitVerification: React.FC<FirstVisitVerificationProps> = ({
     // 异步处理 Clarity 事件和通知
     requestIdleCallback(() => {
       try {
-        if (typeof clarity !== 'undefined' && clarity.event) {
+        if (typeof clarity !== 'undefined' && typeof clarity.event === 'function') {
           clarity.event('turnstile_verify_success');
         }
       } catch (err) {
@@ -340,7 +338,7 @@ export const FirstVisitVerification: React.FC<FirstVisitVerificationProps> = ({
     // 异步处理事件记录和通知
     requestIdleCallback(() => {
       try {
-        if (typeof clarity !== 'undefined' && clarity.event) {
+        if (typeof clarity !== 'undefined' && typeof clarity.event === 'function') {
           clarity.event('turnstile_verify_expire');
         }
       } catch (err) {
@@ -368,7 +366,7 @@ export const FirstVisitVerification: React.FC<FirstVisitVerificationProps> = ({
     // 异步处理事件记录和通知
     requestIdleCallback(() => {
       try {
-        if (typeof clarity !== 'undefined' && clarity.event) {
+        if (typeof clarity !== 'undefined' && typeof clarity.event === 'function') {
           clarity.event('turnstile_verify_error');
         }
       } catch (err) {
@@ -397,7 +395,7 @@ export const FirstVisitVerification: React.FC<FirstVisitVerificationProps> = ({
     // 异步处理 Clarity 事件和通知
     requestIdleCallback(() => {
       try {
-        if (typeof clarity !== 'undefined' && clarity.event) {
+        if (typeof clarity !== 'undefined' && typeof clarity.event === 'function') {
           clarity.event('hcaptcha_verify_success');
         }
       } catch (err) {
@@ -424,7 +422,7 @@ export const FirstVisitVerification: React.FC<FirstVisitVerificationProps> = ({
     // 异步处理事件记录和通知
     requestIdleCallback(() => {
       try {
-        if (typeof clarity !== 'undefined' && clarity.event) {
+        if (typeof clarity !== 'undefined' && typeof clarity.event === 'function') {
           clarity.event('hcaptcha_verify_expire');
         }
       } catch (err) {
@@ -452,7 +450,7 @@ export const FirstVisitVerification: React.FC<FirstVisitVerificationProps> = ({
     // 异步处理事件记录和通知
     requestIdleCallback(() => {
       try {
-        if (typeof clarity !== 'undefined' && clarity.event) {
+        if (typeof clarity !== 'undefined' && typeof clarity.event === 'function') {
           clarity.event('hcaptcha_verify_error');
         }
       } catch (err) {
@@ -510,13 +508,13 @@ export const FirstVisitVerification: React.FC<FirstVisitVerificationProps> = ({
     });
 
     try {
-      const result = await verifyTempFingerprint(fingerprint, token);
+      const result = await verifyTempFingerprint(fingerprint, token, secureCaptchaConfig?.captchaType === CaptchaType.HCAPTCHA ? 'hcaptcha' : 'turnstile');
       if (result.success) {
         console.log('首次访问验证成功');
 
         // Microsoft Clarity事件记录：验证成功
         try {
-          if (typeof clarity !== 'undefined' && clarity.event) {
+          if (typeof clarity !== 'undefined' && typeof clarity.event === 'function') {
             clarity.event('first_visit_verification_success');
           }
         } catch (err) {
@@ -541,19 +539,17 @@ export const FirstVisitVerification: React.FC<FirstVisitVerificationProps> = ({
           type: 'success'
         });
 
-        // 重置重试计数器
-        setRetryCount(0);
 
         // 延迟一下再跳转，让用户看到成功消息
         setTimeout(() => {
           onVerificationComplete();
-        }, 1000);
+        }, 1500); // Changed from 1000 to 1500
       } else {
         const errorMsg = '验证失败，请重试';
         
         // Microsoft Clarity事件记录：验证失败（基础信息）
         try {
-          if (typeof clarity !== 'undefined' && clarity.event) {
+          if (typeof clarity !== 'undefined' && typeof clarity.event === 'function') {
             clarity.event('first_visit_verification_failed');
           }
         } catch (err) {
@@ -616,7 +612,7 @@ export const FirstVisitVerification: React.FC<FirstVisitVerificationProps> = ({
 
       // Microsoft Clarity事件记录：验证异常失败
       try {
-        if (typeof clarity !== 'undefined' && clarity.event) {
+        if (typeof clarity !== 'undefined' && typeof clarity.event === 'function') {
           clarity.event('first_visit_verification_exception');
         }
       } catch (clarityError) {
@@ -635,40 +631,10 @@ export const FirstVisitVerification: React.FC<FirstVisitVerificationProps> = ({
         setHCaptchaKey(k => k + 1);
       }
 
-      // 增加重试次数并显示重试提示
-      setRetryCount(prev => {
-        const newCount = prev + 1;
-        
-        // 记录重试事件
-        try {
-          if (typeof clarity !== 'undefined' && clarity.event) {
-            clarity.event('first_visit_verification_retry');
-          }
-        } catch (clarityError) {
-          console.warn('Failed to send Clarity event:', clarityError);
-        }
-        
-        if (newCount <= 3) {
-          setTimeout(() => {
-            setNotification({
-              message: `第 ${newCount} 次重试，还可重试 ${3 - newCount} 次`,
-              type: 'warning'
-            });
-          }, 1000);
-        } else {
-          setTimeout(() => {
-            setNotification({
-              message: '重试次数过多，请刷新页面后重试',
-              type: 'error'
-            });
-          }, 1000);
-        }
-        return newCount;
-      });
     } finally {
       setVerifying(false);
     }
-  }, [isVerified, getCurrentToken, fingerprint, onVerificationComplete, setNotification, banExpiresAt, clientIP, retryCount, verificationMode]);
+  }, [isVerified, getCurrentToken, fingerprint, onVerificationComplete, setNotification, banExpiresAt, clientIP, verificationMode]);
 
   // 简化的键盘快捷键支持 - 安全的window访问
   useEffect(() => {
@@ -686,16 +652,12 @@ export const FirstVisitVerification: React.FC<FirstVisitVerificationProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isVerified, verifying, handleVerify]);
 
-  // 重置重试计数器
-  const resetRetryCount = useCallback(() => {
-    setRetryCount(0);
-  }, []);
 
   // Microsoft Clarity事件记录：IP被封禁页面显示
   useEffect(() => {
     if (isIpBanned) {
       try {
-        if (typeof clarity !== 'undefined' && clarity.event) {
+        if (typeof clarity !== 'undefined' && typeof clarity.event === 'function') {
           clarity.event('first_visit_ip_banned_displayed');
         }
       } catch (err) {
@@ -1205,13 +1167,6 @@ export const FirstVisitVerification: React.FC<FirstVisitVerificationProps> = ({
                       <span className="text-sm font-medium text-gray-700">
                         使用 {verificationMode === 'turnstile' ? 'Cloudflare Turnstile' : 'hCaptcha'} 验证
                       </span>
-                      <button
-                        onClick={regenerateSelection}
-                        className="ml-2 text-xs text-blue-600 hover:text-blue-800 underline"
-                        disabled={secureSelectionLoading}
-                      >
-                        {secureSelectionLoading ? '重新选择中...' : '重新选择'}
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -1303,7 +1258,7 @@ export const FirstVisitVerification: React.FC<FirstVisitVerificationProps> = ({
                         fill="currentColor"
                         viewBox="0 0 20 20"
                         animate={{ rotate: [0, 10, -10, 0] }}
-                        transition={{ duration: 0.5, repeat: 1 }}
+                        transition={{ duration: 0.5, repeat: 2 }}
                       >
                         <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                       </motion.svg>
@@ -1352,19 +1307,6 @@ export const FirstVisitVerification: React.FC<FirstVisitVerificationProps> = ({
                   </motion.svg>
                   <div className="flex-1">
                     <span className={`font-medium ${isMobile ? 'text-sm' : 'text-base'}`}>{error}</span>
-                    {retryCount > 0 && (
-                      <div className={`mt-2 text-red-500 ${isMobile ? 'text-xs' : 'text-sm'}`}>
-                        已重试 {retryCount} 次 {retryCount >= 3 ? '(已达上限)' : `(还可重试 ${3 - retryCount} 次)`}
-                        {retryCount >= 3 && (
-                          <button
-                            onClick={resetRetryCount}
-                            className="ml-2 text-blue-600 hover:text-blue-800 underline"
-                          >
-                            重置
-                          </button>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </div>
               </motion.div>

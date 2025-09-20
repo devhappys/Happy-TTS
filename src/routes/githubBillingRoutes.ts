@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { GitHubBillingController } from '../controllers/githubBillingController';
 import { authenticateToken } from '../middleware/authenticateToken';
 import { authenticateAdmin } from '../middleware/auth';
+import { authenticateTurnstileToken, authenticateTurnstileTokenForAdmin } from '../middleware/turnstileAuth';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
@@ -16,8 +17,8 @@ const billingLimiter = rateLimit({
 });
 
 const cacheLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000, // 15分钟
-    max: 5, // 每个IP每15分钟最多100次请求
+    windowMs: 1 * 60 * 1000, // 1分钟
+    max: 30, // 每个IP每分钟最多30次请求
     message: { error: '请求过于频繁，请稍后再试' },
     standardHeaders: true,
     legacyHeaders: false,
@@ -41,12 +42,14 @@ router.get('/config', authenticateToken, authenticateAdmin, GitHubBillingControl
 // 测试解析路由（需要管理员权限，不保存配置）
 router.post('/test-parse', configLimiter, authenticateToken, authenticateAdmin, GitHubBillingController.testParseCurl);
 
-// 数据获取路由（公开访问）
-router.get('/usage', GitHubBillingController.getBillingUsage);
+// 数据获取路由（需要Turnstile访问令牌认证）
+router.get('/usage', authenticateTurnstileToken, GitHubBillingController.getBillingUsage);
 
-// 缓存管理路由（公开访问）
-router.delete('/cache/:customerId', cacheLimiter, authenticateToken, authenticateAdmin, GitHubBillingController.clearCache);
-router.delete('/cache/expired', cacheLimiter, authenticateToken, authenticateAdmin, GitHubBillingController.clearExpiredCache);
+// 管理员缓存管理路由（需要管理员权限和 Turnstile 验证）
+router.delete('/cache/:customerId', cacheLimiter, authenticateToken, authenticateAdmin, authenticateTurnstileTokenForAdmin, GitHubBillingController.clearCache);
+router.delete('/cache/expired', cacheLimiter, authenticateToken, authenticateAdmin, authenticateTurnstileTokenForAdmin, GitHubBillingController.clearExpiredCache);
+router.get('/cache/metrics', authenticateToken, authenticateAdmin, authenticateTurnstileTokenForAdmin, GitHubBillingController.getCacheMetrics);
+router.get('/cache/customers', authenticateToken, authenticateAdmin, authenticateTurnstileTokenForAdmin, GitHubBillingController.getCachedCustomers);
 
 // 客户列表路由（公开访问）
 router.get('/customers', GitHubBillingController.getCachedCustomers);

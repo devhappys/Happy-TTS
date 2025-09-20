@@ -55,11 +55,20 @@ const LibreChatPage = React.lazy(() => import('./components/LibreChatPage'));
 // SmartHumanCheckTestPage 懒加载
 const SmartHumanCheckTestPage = React.lazy(() => import('./components/SmartHumanCheckTestPage'));
 
+// 校园紧急情况页面懒加载
+const CampusEmergencyPage = React.lazy(() => import('./components/CampusEmergencyPage'));
+
 // 安踏防伪查询页面懒加载
 const AntiCounterfeitPage = React.lazy(() => import('./components/AntiCounterfeitPage'));
 
 // GitHub Billing Dashboard 懒加载
 const GitHubBillingDashboard = React.lazy(() => import('./components/GitHubBillingDashboard'));
+
+// hCaptcha 验证页面懒加载
+const HCaptchaVerificationPage = React.lazy(() => import('./components/HCaptchaVerificationPage'));
+
+// 通知测试页面懒加载
+const NotificationTestPage = React.lazy(() => import('./components/NotificationTestPage'));
 
 // 恢复 EmailSender 懒加载
 const EmailSenderPage: React.FC = () => {
@@ -410,7 +419,7 @@ const App: React.FC = () => {
 
       try {
         // 从后端获取 Clarity 配置
-        const response = await fetch('/api/tts/clarity/config', {
+        const response = await fetch('/tts/clarity/config', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -430,7 +439,7 @@ const App: React.FC = () => {
             console.log('Microsoft Clarity is disabled or project ID not configured');
           }
         } else {
-          console.warn('Failed to fetch Clarity config from server');
+          console.warn('Failed to fetch Clarity config from server, status:', response.status);
         }
       } catch (error) {
         console.warn('Failed to initialize Microsoft Clarity:', error);
@@ -1039,6 +1048,32 @@ const App: React.FC = () => {
                     </m.div>
                   </Suspense>
                 } />
+                <Route path="/notification-test" element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <m.div
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="in"
+                      exit="out"
+                      transition={pageTransition}
+                    >
+                      <NotificationTestPage />
+                    </m.div>
+                  </Suspense>
+                } />
+                <Route path="/hcaptcha-verify" element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <m.div
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="in"
+                      exit="out"
+                      transition={pageTransition}
+                    >
+                      <HCaptchaVerificationPage />
+                    </m.div>
+                  </Suspense>
+                } />
                 <Route path="/image-upload" element={
                   user ? (
                     <Suspense fallback={<LoadingSpinner />}>
@@ -1111,6 +1146,19 @@ const App: React.FC = () => {
                   ) : (
                     <Navigate to="/welcome" replace state={{ from: location.pathname }} />
                   )
+                } />
+                <Route path="/campus-emergency" element={
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <m.div
+                      variants={pageVariants}
+                      initial="initial"
+                      animate="in"
+                      exit="out"
+                      transition={pageTransition}
+                    >
+                      <CampusEmergencyPage />
+                    </m.div>
+                  </Suspense>
                 } />
 
                 {/* 资源商店相关路由 */}

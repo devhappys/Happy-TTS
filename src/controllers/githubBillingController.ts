@@ -19,10 +19,12 @@ export class GitHubBillingController {
         return;
       }
 
-      if (!curlCommand.includes('github.com/settings/billing')) {
+      // 严格的 URL 验证：确保是真正的 GitHub API URL
+      const githubUrlRegex = /https?:\/\/(?:api\.)?github\.com\//i;
+      if (!githubUrlRegex.test(curlCommand)) {
         res.status(400).json({ 
           error: '无效的 curl 命令',
-          message: 'curl 命令必须包含 GitHub billing 相关的 URL'
+          message: 'curl 命令必须包含有效的 GitHub API URL (https://api.github.com/ 或 https://github.com/)'
         });
         return;
       }
@@ -165,38 +167,51 @@ export class GitHubBillingController {
   }
 
   /**
-   * 清除所有过期缓存
-   * DELETE /api/github-billing/cache/expired
+   * 清理过期缓存
    */
   static async clearExpiredCache(req: Request, res: Response): Promise<void> {
     try {
       await GitHubBillingService.clearExpiredCache();
-
-      res.json({
-        success: true,
-        message: '过期缓存已清除'
-      });
+      res.json({ success: true, message: '过期缓存已清理' });
     } catch (error) {
-      console.error('清除过期缓存失败:', error);
+      console.error('清理过期缓存失败:', error);
       res.status(500).json({ 
-        error: '清除过期缓存失败',
-        message: error instanceof Error ? error.message : '未知错误'
+        success: false, 
+        message: '清理过期缓存失败: ' + (error instanceof Error ? error.message : '未知错误')
       });
     }
   }
 
   /**
-   * 获取缓存的客户ID列表
-   * GET /api/github-billing/customers
+   * 获取缓存性能指标
+   */
+  static async getCacheMetrics(req: Request, res: Response): Promise<void> {
+    try {
+      const metrics = await GitHubBillingService.getCachePerformanceMetrics();
+      res.json({ 
+        success: true, 
+        data: metrics 
+      });
+    } catch (error) {
+      console.error('获取缓存性能指标失败:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: '获取缓存性能指标失败: ' + (error instanceof Error ? error.message : '未知错误')
+      });
+    }
+  }
+
+  /**
+   * 获取缓存的客户列表
    */
   static async getCachedCustomers(req: Request, res: Response): Promise<void> {
     try {
-      const customerIds = await GitHubBillingService.getCachedCustomerIds();
+      const customers = await GitHubBillingService.getCachedCustomersDetails();
 
       res.json({
         success: true,
-        data: customerIds,
-        count: customerIds.length
+        data: customers,
+        count: customers.length
       });
     } catch (error) {
       console.error('获取缓存客户列表失败:', error);

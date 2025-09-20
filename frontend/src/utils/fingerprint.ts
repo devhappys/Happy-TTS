@@ -382,7 +382,23 @@ export const reportTempFingerprint = async (): Promise<{ isFirstVisit: boolean; 
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ fingerprint })
+      body: JSON.stringify({ 
+        fingerprint,
+        userAgent: navigator.userAgent,
+        timestamp: Date.now(),
+        clientInfo: {
+          language: navigator.language,
+          platform: navigator.platform,
+          cookieEnabled: navigator.cookieEnabled,
+          doNotTrack: navigator.doNotTrack,
+          hardwareConcurrency: navigator.hardwareConcurrency,
+          maxTouchPoints: navigator.maxTouchPoints,
+          screenResolution: `${screen.width}x${screen.height}`,
+          colorDepth: screen.colorDepth,
+          pixelDepth: screen.pixelDepth,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        }
+      })
     });
 
     if (!response.ok) {
@@ -411,14 +427,32 @@ export const reportTempFingerprint = async (): Promise<{ isFirstVisit: boolean; 
 };
 
 // 验证临时指纹
-export const verifyTempFingerprint = async (fingerprint: string, cfToken: string): Promise<{ success: boolean; accessToken?: string }> => {
+export const verifyTempFingerprint = async (fingerprint: string, cfToken: string, captchaType: 'turnstile' | 'hcaptcha' = 'turnstile'): Promise<{ success: boolean; accessToken?: string }> => {
   try {
     const response = await fetch(`${getApiBaseUrl()}/api/turnstile/verify-temp-fingerprint`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ fingerprint, cfToken })
+      body: JSON.stringify({ 
+        fingerprint, 
+        cfToken,
+        captchaType,
+        userAgent: navigator.userAgent,
+        timestamp: Date.now(),
+        clientInfo: {
+          language: navigator.language,
+          platform: navigator.platform,
+          cookieEnabled: navigator.cookieEnabled,
+          doNotTrack: navigator.doNotTrack,
+          hardwareConcurrency: navigator.hardwareConcurrency,
+          maxTouchPoints: navigator.maxTouchPoints,
+          screenResolution: `${screen.width}x${screen.height}`,
+          colorDepth: screen.colorDepth,
+          pixelDepth: screen.pixelDepth,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        }
+      })
     });
 
     if (!response.ok) {
@@ -489,7 +523,24 @@ export const verifyAccessToken = async (token: string, fingerprint: string): Pro
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ token, fingerprint })
+      body: JSON.stringify({ 
+        token, 
+        fingerprint,
+        userAgent: navigator.userAgent,
+        timestamp: Date.now(),
+        clientInfo: {
+          language: navigator.language,
+          platform: navigator.platform,
+          cookieEnabled: navigator.cookieEnabled,
+          doNotTrack: navigator.doNotTrack,
+          hardwareConcurrency: navigator.hardwareConcurrency,
+          maxTouchPoints: navigator.maxTouchPoints,
+          screenResolution: `${screen.width}x${screen.height}`,
+          colorDepth: screen.colorDepth,
+          pixelDepth: screen.pixelDepth,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        }
+      })
     });
 
     if (!response.ok) {

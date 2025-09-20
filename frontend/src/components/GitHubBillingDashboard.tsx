@@ -3,6 +3,7 @@ import { motion as m } from 'framer-motion';
 import { FaSync, FaGithub, FaDollarSign, FaCalendarAlt, FaUser, FaTrash } from 'react-icons/fa';
 import { useNotification } from './Notification';
 import { getApiBaseUrl, getAuthToken } from '../api/api';
+import { getFingerprint, getAccessToken } from '../utils/fingerprint';
 
 // 动画配置
 const ENTER_INITIAL = { opacity: 0, y: 20 };
@@ -28,6 +29,63 @@ const GitHubBillingDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [customersLoading, setCustomersLoading] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
+  const [, setLoadingStage] = useState<'idle' | 'initial' | 'cached' | 'complete'>('idle');
+
+  // 获取带Turnstile访问令牌的请求头
+  const getTurnstileAuthHeaders = async (): Promise<Record<string, string>> => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+
+    // 获取浏览器指纹
+    const fingerprint = await getFingerprint();
+    if (!fingerprint) {
+      throw new Error('无法生成浏览器指纹');
+    }
+
+    // 获取Turnstile访问令牌
+    const turnstileToken = getAccessToken(fingerprint);
+    if (turnstileToken) {
+      headers['Authorization'] = `Bearer ${turnstileToken}`;
+    }
+
+    headers['X-Fingerprint'] = fingerprint;
+
+    return headers;
+  };
+
+  // 获取带管理员令牌和Turnstile访问令牌的请求头（用于缓存操作）
+  const getAdminTurnstileAuthHeaders = async (): Promise<Record<string, string>> => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+
+    // 获取管理员令牌
+    const adminToken = getAuthToken();
+    if (!adminToken) {
+      throw new Error('缺少管理员访问令牌');
+    }
+
+    // 获取浏览器指纹
+    const fingerprint = await getFingerprint();
+    if (!fingerprint) {
+      throw new Error('无法生成浏览器指纹');
+    }
+
+    // 获取Turnstile访问令牌
+    const turnstileToken = getAccessToken(fingerprint);
+    if (!turnstileToken) {
+      throw new Error('缺少Turnstile访问令牌');
+    }
+
+    // 设置管理员令牌作为主要认证
+    headers['Authorization'] = `Bearer ${adminToken}`;
+    // 设置Turnstile令牌作为额外认证头
+    headers['X-Turnstile-Token'] = turnstileToken;
+    headers['X-Fingerprint'] = fingerprint;
+
+    return headers;
+  };
 
   // 获取基础请求头（无需认证）
   const getHeaders = (): Record<string, string> => {
@@ -46,28 +104,79 @@ const GitHubBillingDashboard: React.FC = () => {
 
   // 初始化时加载缓存数据（如果有的话）
   const initializeCachedData = useCallback(() => {
+    setLoadingStage('initial');
     // 从localStorage获取上次的缓存数据
     const savedData = localStorage.getItem('github-billing-cache');
     if (savedData) {
       try {
         const parsedData = JSON.parse(savedData);
         setCachedCustomers(parsedData);
+        setLoadingStage('cached');
       } catch (e) {
         // 忽略解析错误
+        setLoadingStage('complete');
       }
+    } else {
+      setLoadingStage('complete');
     }
   }, []);
 
+  // 检查是否有Turnstile访问令牌
+  const checkTurnstileToken = async (): Promise<boolean> => {
+    try {
+      const fingerprint = await getFingerprint();
+      if (!fingerprint) {
+        setNotification({
+          message: '缺少访问令牌。',
+          type: 'error'
+        });
+        return false;
+      }
+
+      const token = getAccessToken(fingerprint);
+      if (!token) {
+        setNotification({
+          message: '缺少访问令牌。',
+          type: 'error'
+        });
+        return false;
+      }
+      return true;
+    } catch (error) {
+      setNotification({
+        message: '检查访问令牌失败：' + (error instanceof Error ? error.message : '未知错误'),
+        type: 'error'
+      });
+      return false;
+    }
+  };
+
   // 获取账单数据
-  const fetchBillingData = useCallback(async () => {
+  const fetchBillingData = useCallback(async (forceRefresh: boolean = false) => {
+    if (!(await checkTurnstileToken())) {
+      return;
+    }
+
     setLoading(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/api/github-billing/usage`, {
-        headers: { ...getHeaders() }
+      const headers = await getTurnstileAuthHeaders();
+      const url = forceRefresh 
+        ? `${getApiBaseUrl()}/api/github-billing/usage?force=true`
+        : `${getApiBaseUrl()}/api/github-billing/usage`;
+      
+      const res = await fetch(url, {
+        headers
       });
       const data = await res.json();
       if (!res.ok) {
-        setNotification({ message: data.error || '获取账单数据失败', type: 'error' });
+        if (res.status === 401) {
+          setNotification({
+            message: '请刷新页面',
+            type: 'error'
+          });
+        } else {
+          setNotification({ message: data.error || '获取账单数据失败', type: 'error' });
+        }
         return;
       }
       if (data.success) {
@@ -79,7 +188,8 @@ const GitHubBillingDashboard: React.FC = () => {
         } : data.data;
 
         setBillingData(processedData);
-        setNotification({ message: '账单数据获取成功', type: 'success' });
+        const message = forceRefresh ? '账单数据强制刷新成功' : '账单数据获取成功';
+        setNotification({ message, type: 'success' });
 
         // 将当前获取的数据作为缓存客户数据
         if (processedData.customerId) {
@@ -91,6 +201,7 @@ const GitHubBillingDashboard: React.FC = () => {
           setCachedCustomers([customerData]);
           // 保存到localStorage
           localStorage.setItem('github-billing-cache', JSON.stringify([customerData]));
+          setLoadingStage('complete');
         }
       }
     } catch (e) {
@@ -100,27 +211,75 @@ const GitHubBillingDashboard: React.FC = () => {
     }
   }, [setNotification]);
 
+  // 检查是否有管理员和Turnstile访问令牌
+  const checkAdminAndTurnstileToken = async (): Promise<boolean> => {
+    try {
+      // 检查管理员令牌
+      const adminToken = getAuthToken();
+      if (!adminToken) {
+        setNotification({
+          message: '缺少管理员访问令牌',
+          type: 'error'
+        });
+        return false;
+      }
+
+      // 检查Turnstile令牌
+      const fingerprint = await getFingerprint();
+      if (!fingerprint) {
+        setNotification({
+          message: '缺少访问令牌。',
+          type: 'error'
+        });
+        return false;
+      }
+
+      const turnstileToken = getAccessToken(fingerprint);
+      if (!turnstileToken) {
+        setNotification({
+          message: '缺少访问令牌。',
+          type: 'error'
+        });
+        return false;
+      }
+      return true;
+    } catch (error) {
+      setNotification({
+        message: '检查访问令牌失败：' + (error instanceof Error ? error.message : '未知错误'),
+        type: 'error'
+      });
+      return false;
+    }
+  };
+
   // 清除缓存
   const clearCache = useCallback(async (customerId?: string) => {
+    if (!(await checkAdminAndTurnstileToken())) {
+      return;
+    }
+
     setClearingCache(true);
     try {
       const url = customerId
         ? `${getApiBaseUrl()}/api/github-billing/cache/${customerId}`
         : `${getApiBaseUrl()}/api/github-billing/cache/expired`;
 
-      const token = getAuthToken();
-      const headers = { ...getHeaders() };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
+      const headers = await getAdminTurnstileAuthHeaders();
+
       const res = await fetch(url, {
         method: 'DELETE',
         headers
       });
       const data = await res.json();
       if (!res.ok) {
-        setNotification({ message: data.error || '清除缓存失败', type: 'error' });
+        if (res.status === 401) {
+          setNotification({
+            message: '请刷新页面',
+            type: 'error'
+          });
+        } else {
+          setNotification({ message: data.error || '清除缓存失败', type: 'error' });
+        }
         return;
       }
       if (data.success) {
@@ -140,9 +299,38 @@ const GitHubBillingDashboard: React.FC = () => {
     }
   }, [setNotification, billingData]);
 
-  // 组件加载时初始化缓存数据
+  // 渐进式数据加载
   useEffect(() => {
-    initializeCachedData();
+    const loadDataProgressively = async () => {
+      // 第一阶段：立即加载本地缓存数据
+      initializeCachedData();
+      
+      // 第二阶段：延迟加载远程缓存客户列表（如果需要）
+      setTimeout(async () => {
+        try {
+          setCustomersLoading(true);
+          const res = await fetch(`${getApiBaseUrl()}/api/github-billing/customers`);
+          const data = await res.json();
+          
+          if (res.ok && data.success && data.data?.length > 0) {
+            // 合并远程数据和本地数据，去重
+            const remoteCustomers = data.data;
+            setCachedCustomers(prevCustomers => {
+              const existingIds = new Set(prevCustomers.map(c => c.customerId));
+              const newCustomers = remoteCustomers.filter((c: CachedCustomer) => !existingIds.has(c.customerId));
+              return [...prevCustomers, ...newCustomers];
+            });
+          }
+        } catch (error) {
+          console.log('远程缓存数据加载失败，使用本地数据:', error);
+        } finally {
+          setCustomersLoading(false);
+          setLoadingStage('complete');
+        }
+      }, 1200);
+    };
+    
+    loadDataProgressively();
   }, [initializeCachedData]);
 
   return (
@@ -173,13 +361,22 @@ const GitHubBillingDashboard: React.FC = () => {
         <div className="flex flex-col lg:flex-row gap-4 items-end">
           <div className="flex gap-2">
             <m.button
-              onClick={() => fetchBillingData()}
+              onClick={() => fetchBillingData(false)}
               disabled={loading}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm font-medium flex items-center gap-2"
               whileTap={{ scale: 0.95 }}
             >
               <FaSync className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               {loading ? '获取中...' : '获取数据'}
+            </m.button>
+            <m.button
+              onClick={() => fetchBillingData(true)}
+              disabled={loading}
+              className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition disabled:opacity-50 text-sm font-medium flex items-center gap-2"
+              whileTap={{ scale: 0.95 }}
+            >
+              <FaSync className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? '刷新中...' : '强制刷新'}
             </m.button>
             <m.button
               onClick={() => clearCache()}
@@ -268,7 +465,7 @@ const GitHubBillingDashboard: React.FC = () => {
       )}
 
       {/* 缓存的客户列表 */}
-      {cachedCustomers.length > 0 && (
+      {(cachedCustomers.length > 0 || customersLoading) && (
         <m.div
           className="bg-white rounded-xl p-6 shadow-sm border border-gray-200"
           initial={ENTER_INITIAL}
@@ -276,7 +473,12 @@ const GitHubBillingDashboard: React.FC = () => {
           transition={trans06}
         >
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-800">缓存的客户数据</h3>
+            <h3 className="text-lg font-semibold text-gray-800">
+              缓存的客户数据
+              {customersLoading && (
+                <span className="ml-2 text-sm text-blue-600">正在同步...</span>
+              )}
+            </h3>
             <m.button
               onClick={() => fetchBillingData()}
               disabled={loading}
@@ -288,54 +490,78 @@ const GitHubBillingDashboard: React.FC = () => {
             </m.button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 px-3 font-medium text-gray-700">Customer ID</th>
-                  <th className="text-left py-2 px-3 font-medium text-gray-700">可计费金额</th>
-                  <th className="text-left py-2 px-3 font-medium text-gray-700">缓存时间</th>
-                  <th className="text-left py-2 px-3 font-medium text-gray-700">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cachedCustomers.map((customer, index) => (
-                  <tr key={`customer-${customer.customerId}-${index}`} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                    <td className="py-2 px-3 font-mono text-xs break-all">{customer.customerId}</td>
-                    <td className="py-2 px-3 font-bold text-green-600">
-                      ${formatAmount(customer.billableAmount)}
-                      <div className="text-xs text-gray-500">原始: {customer.billableAmount}</div>
-                    </td>
-                    <td className="py-2 px-3 text-xs text-gray-600">
-                      {customer.lastFetched ?
-                        new Date(customer.lastFetched).toLocaleString() :
-                        '未知时间'
-                      }
-                    </td>
-                    <td className="py-2 px-3">
-                      <div className="flex gap-1">
-                        <m.button
-                          onClick={() => fetchBillingData()}
-                          className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition"
-                          whileTap={{ scale: 0.95 }}
-                        >
-                          查看
-                        </m.button>
-                        <m.button
-                          onClick={() => clearCache(customer.customerId)}
-                          disabled={clearingCache}
-                          className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600 transition disabled:opacity-50"
-                          whileTap={{ scale: 0.95 }}
-                        >
-                          清除
-                        </m.button>
-                      </div>
-                    </td>
+          {customersLoading && cachedCustomers.length === 0 ? (
+            <div className="space-y-3">
+              {[...Array(3)].map((_, index) => (
+                <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg animate-pulse">
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-300 rounded w-48"></div>
+                    <div className="h-3 bg-gray-300 rounded w-32"></div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="h-6 bg-gray-300 rounded w-12"></div>
+                    <div className="h-6 bg-gray-300 rounded w-12"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-2 px-3 font-medium text-gray-700">Customer ID</th>
+                    <th className="text-left py-2 px-3 font-medium text-gray-700">可计费金额</th>
+                    <th className="text-left py-2 px-3 font-medium text-gray-700">缓存时间</th>
+                    <th className="text-left py-2 px-3 font-medium text-gray-700">操作</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {cachedCustomers.map((customer, index) => (
+                    <tr key={`customer-${customer.customerId}-${index}`} className={index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                      <td className="py-2 px-3 font-mono text-xs break-all">{customer.customerId}</td>
+                      <td className="py-2 px-3 font-bold text-green-600">
+                        ${formatAmount(customer.billableAmount)}
+                        <div className="text-xs text-gray-500">原始: {customer.billableAmount}</div>
+                      </td>
+                      <td className="py-2 px-3 text-xs text-gray-600">
+                        {customer.lastFetched ?
+                          new Date(customer.lastFetched).toLocaleString() :
+                          '未知时间'
+                        }
+                      </td>
+                      <td className="py-2 px-3">
+                        <div className="flex gap-1">
+                          <m.button
+                            onClick={() => fetchBillingData()}
+                            className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition"
+                            whileTap={{ scale: 0.95 }}
+                          >
+                            查看
+                          </m.button>
+                          <m.button
+                            onClick={() => clearCache(customer.customerId)}
+                            disabled={clearingCache}
+                            className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600 transition disabled:opacity-50"
+                            whileTap={{ scale: 0.95 }}
+                          >
+                            清除
+                          </m.button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {customersLoading && cachedCustomers.length > 0 && (
+                    <tr className="animate-pulse">
+                      <td colSpan={4} className="py-2 px-3 text-center text-sm text-blue-600">
+                        正在同步更多数据...
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </m.div>
       )}
 
@@ -348,7 +574,9 @@ const GitHubBillingDashboard: React.FC = () => {
       >
         <h3 className="text-lg font-semibold text-blue-800 mb-3">使用说明</h3>
         <ul className="text-sm text-blue-700 space-y-2">
-          <li>• <strong>公开访问：</strong>此功能无需登录即可使用，所有用户均可查看 GitHub 账单数据</li>
+          <li>• <strong>需要Turnstile认证：</strong>此功能需要通过Turnstile验证获取访问令牌</li>
+          <li>• <strong>获取令牌：</strong>如果没有访问令牌，请先访问其他页面完成Turnstile验证</li>
+          <li>• <strong>令牌有效期：</strong>访问令牌有时间限制，过期后需要重新验证</li>
           <li>• <strong>获取数据：</strong>点击"获取数据"按钮从 GitHub API 获取最新的账单数据</li>
           <li>• <strong>Customer ID：</strong>系统自动使用后端配置的默认值</li>
           <li>• <strong>数据缓存：</strong>系统会自动缓存获取的数据，避免频繁调用 GitHub API</li>
