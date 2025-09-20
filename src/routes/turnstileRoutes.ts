@@ -1188,35 +1188,55 @@ router.post('/secure-captcha-config', publicLimiter, async (req, res) => {
             });
         }
 
-        // 根据选择的类型返回对应配置
-        const captchaType = decryptedSelection.type;
+        // 后端决定验证码类型（随机枚举），忽略前端选择
+        // 规则：
+        // - 同时可用：在可用集合中随机选择
+        // - 只有一个可用：返回该可用项
+        // - 都不可用：返回禁用的 Turnstile
+        let captchaType;
         let config;
 
-        if (captchaType === 'turnstile') {
-            const turnstileConfig = await TurnstileService.getConfig();
-            config = {
-                enabled: turnstileConfig.enabled,
-                siteKey: turnstileConfig.siteKey
-            };
-        } else if (captchaType === 'hcaptcha') {
-            const hcaptchaConfig = await TurnstileService.getHCaptchaConfig();
-            config = {
-                enabled: hcaptchaConfig.enabled,
-                siteKey: hcaptchaConfig.siteKey
-            };
-        } else {
-            return res.status(400).json({
-                success: false,
-                error: '无效的验证类型'
+        const turnstileConfig = await TurnstileService.getConfig();
+        const hcaptchaConfig = await TurnstileService.getHCaptchaConfig();
+
+        const candidates = [];
+        if (turnstileConfig.enabled && turnstileConfig.siteKey) {
+            candidates.push({
+                type: 'turnstile',
+                config: { enabled: turnstileConfig.enabled, siteKey: turnstileConfig.siteKey }
+            });
+        }
+        if (hcaptchaConfig.enabled && hcaptchaConfig.siteKey) {
+            candidates.push({
+                type: 'hcaptcha',
+                config: { enabled: hcaptchaConfig.enabled, siteKey: hcaptchaConfig.siteKey }
             });
         }
 
-        // 记录选择日志（用于审计）
-        console.log('安全CAPTCHA选择:', {
+        if (candidates.length === 0) {
+            captchaType = 'turnstile';
+            config = { enabled: false, siteKey: null };
+        } else if (candidates.length === 1) {
+            captchaType = candidates[0].type;
+            config = candidates[0].config;
+        } else {
+            // 两者都可用，随机选择
+            const index = (typeof crypto.randomInt === 'function')
+                ? crypto.randomInt(0, candidates.length)
+                : Math.floor(Math.random() * candidates.length);
+            captchaType = candidates[index].type;
+            config = candidates[index].config;
+        }
+
+        // 记录后端选择日志（用于审计）
+        console.log('后端CAPTCHA选择:', {
             type: captchaType,
+            selectionMethod: candidates.length > 1 ? 'random' : (candidates.length === 1 ? 'single-available' : 'fallback-disabled'),
             fingerprint: fingerprint.substring(0, 8) + '...',
             timestamp: new Date(timestamp).toISOString(),
-            clientIp: req.ip || 'unknown'
+            clientIp: req.ip || 'unknown',
+            configEnabled: config.enabled,
+            hasSiteKey: !!config.siteKey
         });
 
         res.json({
