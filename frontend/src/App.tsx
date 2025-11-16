@@ -344,6 +344,109 @@ const App: React.FC = () => {
   const overlayTransition = React.useMemo(() => (prefersReducedMotion ? { duration: 0 } : { duration: 0.5 }), [prefersReducedMotion]);
   const showParticles = !prefersReducedMotion;
 
+  // React 19 文档元数据：路由配置优化，避免每次重新创建
+  const routeConfig = React.useMemo(() => ({
+    titles: {
+      '/': 'Happy TTS - 首页',
+      '/welcome': 'Happy TTS - 欢迎页面',
+      '/tts': 'Happy TTS - 语音合成',
+      '/policy': 'Happy TTS - 服务条款',
+      '/fbi-wanted': 'Happy TTS - FBI通缉犯查询',
+      '/lottery': 'Happy TTS - 抽奖系统',
+      '/anti-counterfeit': 'Happy TTS - 安踏防伪查询',
+      '/admin/lottery': 'Happy TTS - 抽奖管理',
+      '/admin/users': 'Happy TTS - 用户管理',
+      '/admin': 'Happy TTS - 管理后台',
+      '/github-billing': 'Happy TTS - GitHub账单查询',
+      '/logshare': 'Happy TTS - 日志分享',
+      '/case-converter': 'Happy TTS - 大小写转换',
+      '/word-count': 'Happy TTS - 字数统计',
+      '/age-calculator': 'Happy TTS - 年龄计算器',
+      '/email-sender': 'Happy TTS - 邮件发送',
+      '/profile': 'Happy TTS - 个人资料',
+      '/outemail': 'Happy TTS - 外部邮件',
+      '/modlist': 'Happy TTS - 模组列表',
+      '/smart-human-check': 'Happy TTS - 智能人机验证',
+      '/notification-test': 'Happy TTS - 通知测试',
+      '/hcaptcha-verify': 'Happy TTS - hCaptcha验证',
+      '/image-upload': 'Happy TTS - 图片上传',
+      '/librechat': 'Happy TTS - LibreChat',
+      '/tiger-adventure': 'Happy TTS - 老虎冒险',
+      '/coin-flip': 'Happy TTS - 硬币翻转',
+      '/markdown-export': 'Happy TTS - Markdown导出',
+      '/campus-emergency': 'Happy TTS - 校园紧急情况',
+      '/tamper-detection-demo': 'Happy TTS - 篡改检测演示',
+      '/demo': 'Happy TTS - 演示中心',
+      '/demo/xiaohongshu': 'Happy TTS - 小红书演示',
+      '/demo/meditation': 'Happy TTS - 冥想应用演示',
+      '/demo/music': 'Happy TTS - 音乐播放器演示',
+      '/demo/finance': 'Happy TTS - 金融应用演示',
+      '/store': 'Happy TTS - 资源商店',
+      '/admin/store': 'Happy TTS - 商店管理',
+      '/admin/store/resources': 'Happy TTS - 资源管理',
+      '/admin/store/cdks': 'Happy TTS - CDK管理',
+    },
+    descriptions: {
+      '/': 'Happy TTS智能语音合成平台，提供高质量的文本转语音服务',
+      '/tts': '使用Happy TTS进行高质量的文本转语音合成',
+      '/lottery': '参与Happy TTS抽奖活动，赢取丰厚奖励',
+      '/word-count': '精确统计文本字数、字符数、段落数等信息',
+      '/age-calculator': '精确计算年龄，支持多种日期格式和时区',
+      '/logshare': '安全分享和查看日志文件，支持加密传输',
+      '/store': '浏览和下载优质资源，提升开发效率',
+    }
+  }), []);
+
+  // React 19 文档元数据：根据当前路由动态设置页面标题和描述
+  useEffect(() => {
+    const currentPath = location.pathname;
+    let title = (routeConfig.titles as Record<string, string>)[currentPath];
+    
+    // 动态路由匹配：优先匹配精确路径，然后匹配父路径
+    if (!title) {
+      const pathSegments = currentPath.split('/');
+      if (pathSegments.length > 2) {
+        // 尝试匹配父路径（如 /store/resources/123 -> /store）
+        const parentPath = '/' + pathSegments[1];
+        title = (routeConfig.titles as Record<string, string>)[parentPath];
+      }
+    }
+    
+    // 设置页面标题，如果没有匹配则使用默认标题
+    document.title = title || 'Happy TTS - 智能语音合成平台';
+    
+    // 获取页面描述
+    const descriptions = routeConfig.descriptions as Record<string, string>;
+    const description = descriptions[currentPath] || 
+                       descriptions['/' + currentPath.split('/')[1]] || 
+                       'Happy TTS智能语音合成平台，提供多种实用工具和高质量服务';
+    
+    // 更新页面描述元数据
+    let metaDescription = document.querySelector('meta[name="description"]') as HTMLMetaElement;
+    if (!metaDescription) {
+      metaDescription = document.createElement('meta');
+      metaDescription.name = 'description';
+      document.head.appendChild(metaDescription);
+    }
+    metaDescription.content = description;
+
+    // 添加 Open Graph 元标签用于社交分享
+    const updateOrCreateMeta = (property: string, content: string) => {
+      let meta = document.querySelector(`meta[property="${property}"]`) as HTMLMetaElement;
+      if (!meta) {
+        meta = document.createElement('meta');
+        (meta as any).property = property;
+        document.head.appendChild(meta);
+      }
+      (meta as any).content = content;
+    };
+
+    updateOrCreateMeta('og:title', title || 'Happy TTS - 智能语音合成平台');
+    updateOrCreateMeta('og:description', description);
+    updateOrCreateMeta('og:type', 'website');
+    updateOrCreateMeta('og:site_name', 'Happy TTS');
+  }, [location.pathname, routeConfig]);
+
   useEffect(() => {
     const checkMobileOrOverflow = () => {
       const isMobileScreen = window.innerWidth < 768;
