@@ -20,8 +20,8 @@ importers:
         specifier: ^2.2.0
         version: 2.2.0(react@19.0.0)
       '@microsoft/clarity':
-        specifier: ^1.0.0
-        version: 1.0.0
+        specifier: ^1.0.2
+        version: 1.0.2
       '@prisma/client':
         specifier: ^7.0.1
         version: 7.1.0(typescript@5.9.2)
@@ -1336,8 +1336,8 @@ packages:
   '@mermaid-js/parser@0.6.2':
     resolution: {integrity: sha512-+PO02uGF6L6Cs0Bw8RpGhikVvMWEysfAyl27qTlroUB8jSWr1lL0Sf6zi78ZxlSnmgSY2AMMKVgghnN9jTtwkQ==}
 
-  '@microsoft/clarity@1.0.0':
-    resolution: {integrity: sha512-2QY6SmXnqRj6dWhNY8NYCN3e53j4zCFebH4wGnNhdGV1mqAsQwql2fT0w8TISxCvwwfVp8idsWLIdrRHOms1PQ==}
+  '@microsoft/clarity@1.0.2':
+    resolution: {integrity: sha512-9EZYROFpJxEGmQpHvUFqvD3ZJ7QQSqnibYSWmS+1xusoZfG1QQ1/Al9yVBBc11DWMbJrs1pe1hLT273it/skJg==}
 
   '@module-federation/error-codes@0.18.0':
     resolution: {integrity: sha512-Woonm8ehyVIUPXChmbu80Zj6uJkC0dD9SJUZ/wOPtO8iiz/m+dkrOugAuKgoiR6qH4F+yorWila954tBz4uKsQ==}
@@ -6773,7 +6773,7 @@ snapshots:
     dependencies:
       langium: 3.3.1
 
-  '@microsoft/clarity@1.0.0': {}
+  '@microsoft/clarity@1.0.2': {}
 
   '@module-federation/error-codes@0.18.0': {}
 
@@ -9218,7 +9218,7 @@ snapshots:
     dependencies:
       '@fingerprintjs/fingerprintjs': 5.0.1
       '@heroicons/react': 2.2.0(react@19.0.0)
-      '@microsoft/clarity': 1.0.0
+      '@microsoft/clarity': 1.0.2
       '@prisma/client': 7.1.0(typescript@5.9.2)
       '@radix-ui/react-dialog': 1.1.15(@types/react-dom@19.1.9(@types/react@19.1.12))(@types/react@19.1.12)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@react-email/components': 1.0.1(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
