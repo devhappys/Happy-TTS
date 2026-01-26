@@ -96,8 +96,8 @@ importers:
         specifier: ^4.17.21
         version: 4.17.21
       lru-cache:
-        specifier: ^11.2.4
-        version: 11.2.4
+        specifier: ^11.2.5
+        version: 11.2.5
       marked:
         specifier: ^17.0.1
         version: 17.0.1
@@ -2554,8 +2554,8 @@ packages:
   lru-cache@10.4.3:
     resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
 
-  lru-cache@11.2.4:
-    resolution: {integrity: sha512-B5Y16Jr9LB9dHVkh6ZevG+vAbOsNOYCX+sXvFWFu7B3Iz5mijW3zdbMyhsh8ANd2mSWBYdJgnqi+mL7/LrOPYg==}
+  lru-cache@11.2.5:
+    resolution: {integrity: sha512-vFrFJkWtJvJnD5hg+hJvVE8Lh/TcMzKnTgCWmtBipwI5yLX/iX+5UB2tfuyODF5E7k9xEzMdYgGqaSb1c0c5Yw==}
     engines: {node: 20 || >=22}
 
   lru-cache@5.1.1:
@@ -3430,6 +3430,7 @@ packages:
   tar@7.5.2:
     resolution: {integrity: sha512-7NyxrTE4Anh8km8iEy7o0QYPs+0JKBTj5ZaqHg6B39erLg0qYXN3BijtShwbsNSvQ+LN75+KV+C4QR/f6Gwnpg==}
     engines: {node: '>=18'}
+    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exhorbitant rates) by contacting i@izs.me
 
   test-exclude@6.0.0:
     resolution: {integrity: sha512-cAGWPIyOHU6zlmg88jwm7VRyXnMN7iV68OGAbYDk/Mh/xC/pzVPlQtY6ngoIH/5/tciuhGfvESU8GrHrcxD56w==}
@@ -3836,7 +3837,7 @@ snapshots:
       '@csstools/css-color-parser': 3.1.0(@csstools/css-parser-algorithms@3.0.5(@csstools/css-tokenizer@3.0.4))(@csstools/css-tokenizer@3.0.4)
       '@csstools/css-parser-algorithms': 3.0.5(@csstools/css-tokenizer@3.0.4)
       '@csstools/css-tokenizer': 3.0.4
-      lru-cache: 11.2.4
+      lru-cache: 11.2.5
 
   '@asamuzakjp/dom-selector@6.7.6':
     dependencies:
@@ -3844,7 +3845,7 @@ snapshots:
       bidi-js: 1.0.3
       css-tree: 3.1.0
       is-potential-custom-element-name: 1.0.1
-      lru-cache: 11.2.4
+      lru-cache: 11.2.5
 
   '@asamuzakjp/nwsapi@2.3.9': {}
 
@@ -5863,7 +5864,7 @@ snapshots:
       jsonwebtoken: 9.0.3
       liquid-glass-react: 1.1.1(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       lodash: 4.17.21
-      lru-cache: 11.2.4
+      lru-cache: 11.2.5
       marked: 17.0.1
       mongodb: 7.0.0(socks@2.8.7)
       mongodb-connection-string-url: 7.0.0
@@ -6664,7 +6665,7 @@ snapshots:
 
   lru-cache@10.4.3: {}
 
-  lru-cache@11.2.4: {}
+  lru-cache@11.2.5: {}
 
   lru-cache@5.1.1:
     dependencies:
