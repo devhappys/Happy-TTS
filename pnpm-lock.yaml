@@ -105,8 +105,8 @@ importers:
         specifier: ^11.3.1
         version: 11.3.1
       marked:
-        specifier: ^17.0.5
-        version: 17.0.5
+        specifier: ^17.0.6
+        version: 17.0.6
       mongodb:
         specifier: ^7.1.1
         version: 7.1.1(socks@2.8.7)
@@ -1190,10 +1190,6 @@ packages:
 
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
-    engines: {node: '>= 14'}
-
-  agent-base@8.0.0:
-    resolution: {integrity: sha512-QT8i0hCz6C/KQ+KTAbSNwCHDGdmUJl2tp2ZpNlGSWCfhUNVbYG2WLE3MdZGBAgXPV4GAvjGMxo+C1hroyxmZEg==}
     engines: {node: '>= 14'}
 
   agent-base@9.0.0:
@@ -2672,8 +2668,8 @@ packages:
   makeerror@1.0.12:
     resolution: {integrity: sha512-JmqCvUhmt43madlpFzG4BQzG2Z3m6tvQDNKdClZnO3VbIudJYmxsT0FNJMeiB2+JTSlTQTSbU8QdesVmwJcmLg==}
 
-  marked@17.0.5:
-    resolution: {integrity: sha512-6hLvc0/JEbRjRgzI6wnT2P1XuM1/RrrDEX0kPt0N7jGm1133g6X7DlxFasUIx+72aKAr904GTxhSLDrd5DIlZg==}
+  marked@17.0.6:
+    resolution: {integrity: sha512-gB0gkNafnonOw0obSTEGZTT86IuhILt2Wfx0mWH/1Au83kybTayroZ/V6nS25mN7u8ASy+5fMhgB3XPNrOZdmA==}
     engines: {node: '>= 20'}
     hasBin: true
 
@@ -4965,8 +4961,6 @@ snapshots:
 
   agent-base@7.1.4: {}
 
-  agent-base@8.0.0: {}
-
   agent-base@9.0.0: {}
 
   ajv@8.18.0:
@@ -6711,7 +6705,7 @@ snapshots:
     dependencies:
       tmpl: 1.0.5
 
-  marked@17.0.5: {}
+  marked@17.0.6: {}
 
   math-intrinsics@1.1.0: {}
 
