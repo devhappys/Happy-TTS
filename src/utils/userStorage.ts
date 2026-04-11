@@ -100,7 +100,6 @@ export class UserStorage {
   private static readonly USERS_FILE = path.join(process.cwd(), "data", "users.json");
   private static readonly DAILY_LIMIT = 5;
   private static autoSwitchEnabled = true;
-  private static mongoConnected = false;
 
   // 输入净化
   public static sanitizeInput(input: string | undefined): string {
@@ -1272,7 +1271,7 @@ export class UserStorage {
               `${usagePercent}%`,
               dailyUsage,
               UserStorage.DAILY_LIMIT,
-              time
+              time,
             );
             sendEmail({
               to: user.email,
@@ -1280,7 +1279,7 @@ export class UserStorage {
               html: emailHtml,
               logTag: "用量警报通知",
               checkQuota: false,
-            }).catch(e => logger.warn(`[用量警报通知] 邮件发送失败: ${user.email}`, e));
+            }).catch((e) => logger.warn(`[用量警报通知] 邮件发送失败: ${user.email}`, e));
           } catch (notifyErr) {
             logger.warn("[用量警报通知] 发送通知邮件失败:", notifyErr);
           }
@@ -1322,7 +1321,7 @@ export class UserStorage {
                 `${usagePercent}%`,
                 dailyUsage,
                 UserStorage.DAILY_LIMIT,
-                time
+                time,
               );
               sendEmail({
                 to: user.email,
@@ -1330,7 +1329,7 @@ export class UserStorage {
                 html: emailHtml,
                 logTag: "用量警报通知(MySQL)",
                 checkQuota: false,
-              }).catch(e => logger.warn(`[用量警报通知] 邮件发送失败: ${user.email}`, e));
+              }).catch((e) => logger.warn(`[用量警报通知] 邮件发送失败: ${user.email}`, e));
             } catch (notifyErr) {
               logger.warn("[用量警报通知] 发送通知邮件失败:", notifyErr);
             }
@@ -1370,7 +1369,7 @@ export class UserStorage {
               `${usagePercent}%`,
               user.dailyUsage,
               UserStorage.DAILY_LIMIT,
-              time
+              time,
             );
             sendEmail({
               to: user.email,
@@ -1378,7 +1377,7 @@ export class UserStorage {
               html: emailHtml,
               logTag: "用量警报通知(File)",
               checkQuota: false,
-            }).catch(e => logger.warn(`[用量警报通知] 邮件发送失败: ${user.email}`, e));
+            }).catch((e) => logger.warn(`[用量警报通知] 邮件发送失败: ${user.email}`, e));
           } catch (notifyErr) {
             logger.warn("[用量警报通知] 发送通知邮件失败:", notifyErr);
           }
