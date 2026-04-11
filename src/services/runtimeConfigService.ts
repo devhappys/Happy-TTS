@@ -33,6 +33,10 @@ function asObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
 
+function hasOwnKey(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
 function normalizeString(value: unknown, fallback: string, maxLength = 2048): string {
   if (typeof value !== "string") return fallback;
   return value.trim().slice(0, maxLength);
@@ -176,7 +180,7 @@ export function extractGoogleAuthClientId(value: unknown): string {
 export function looksLikeGoogleOAuthClientJson(value: unknown): boolean {
   const raw = asObject(value);
 
-  return Object.hasOwn(raw, "web") || Object.hasOwn(raw, "installed") || Object.hasOwn(raw, "client_id");
+  return hasOwnKey(raw, "web") || hasOwnKey(raw, "installed") || hasOwnKey(raw, "client_id");
 }
 
 function normalizeStoredGoogleAuthConfig(

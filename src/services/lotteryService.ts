@@ -64,6 +64,9 @@ export interface BlockchainData {
 
 class LotteryService {
   private dataDir: string;
+  private roundsFile: string;
+  private usersFile: string;
+  private blockchainCacheFile: string;
   private blockchainCache: BlockchainData | null = null;
 
   constructor() {

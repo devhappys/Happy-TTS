@@ -100,6 +100,7 @@ export class UserStorage {
   private static readonly USERS_FILE = path.join(process.cwd(), "data", "users.json");
   private static readonly DAILY_LIMIT = 5;
   private static autoSwitchEnabled = true;
+  private static mongoConnected = mongoose.connection.readyState === 1;
 
   // 输入净化
   public static sanitizeInput(input: string | undefined): string {
