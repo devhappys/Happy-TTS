@@ -18,7 +18,7 @@
     "typecheck": "tsc"
   },
   "dependencies": {
-    "@docusaurus/core": "3.10.0",
+    "@docusaurus/core": "3.10.1",
     "@docusaurus/preset-classic": "3.10.0",
     "@fingerprintjs/fingerprintjs": "^5.2.0",
     "@mdx-js/react": "^3.1.1",
