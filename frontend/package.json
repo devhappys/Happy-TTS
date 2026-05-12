@@ -88,7 +88,7 @@
     "remark-math": "^6.0.0",
     "rollup": "^4.60.3",
     "swagger-ui-react": "^5.32.5",
-    "tailwind-merge": "^3.5.0",
+    "tailwind-merge": "^3.6.0",
     "util": "^0.12.5",
     "validator": "^13.15.35",
     "vite-plugin-auto-i18n": "^0.0.9"
