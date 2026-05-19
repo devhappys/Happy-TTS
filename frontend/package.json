@@ -61,7 +61,7 @@
     "jsonwebtoken": "^9.0.3",
     "jspdf": "^4.2.1",
     "jszip": "^3.10.1",
-    "katex": "^0.16.45",
+    "katex": "^0.16.47",
     "lodash.merge": "^4.6.2",
     "lucide-react": "^1.14.0",
     "marked": "^18.0.3",
