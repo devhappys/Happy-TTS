@@ -116,7 +116,7 @@
     "jest-environment-jsdom": "^30.4.1",
     "jsdom": "^29.1.1",
     "postcss": "^8.5.14",
-    "react-email": "6.1.1",
+    "react-email": "6.1.5",
     "rollup-plugin-visualizer": "^7.0.1",
     "tailwind-scrollbar": "^4.0.2",
     "tailwindcss": "^4.3.0",
