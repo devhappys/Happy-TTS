@@ -72,7 +72,7 @@
   "dependencies": {
     "@fingerprintjs/fingerprintjs": "^5.2.0",
     "@simplewebauthn/browser": "^13.3.0",
-    "@simplewebauthn/server": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.1",
     "@types/bcrypt": "^6.0.0",
     "@types/dompurify": "^3.2.0",
     "@types/express-rate-limit": "^6.0.2",
