@@ -145,7 +145,7 @@
     "@types/swagger-ui-express": "^4.1.8",
     "@types/tar": "^7.0.87",
     "@types/ws": "^8.18.1",
-    "concurrently": "^9.2.1",
+    "concurrently": "^10.0.3",
     "fast-check": "^4.8.0",
     "javascript-obfuscator": "^5.4.3",
     "jest": "^30.4.2",
