@@ -31,7 +31,7 @@
     "@heroicons/react": "^2.2.0",
     "@microsoft/clarity": "^1.0.2",
     "@prisma/client": "^7.8.0",
-    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-dialog": "^1.1.16",
     "@react-email/components": "1.0.12",
     "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13.3.1",
