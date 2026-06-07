@@ -85,7 +85,7 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
     "form-data": "^4.0.5",
-    "google-auth-library": "^10.6.2",
+    "google-auth-library": "^10.7.0",
     "helmet": "^8.2.0",
     "http-proxy-agent": "^9.0.0",
     "is-docker": "^4.0.0",
