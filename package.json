@@ -89,7 +89,7 @@
     "form-data": "^4.0.5",
     "google-auth-library": "^10.7.0",
     "helmet": "^8.2.0",
-    "http-proxy-agent": "^9.0.0",
+    "http-proxy-agent": "^9.1.0",
     "is-docker": "^4.0.0",
     "jsdom": "^29.1.1",
     "jsonwebtoken": "^9.0.3",
