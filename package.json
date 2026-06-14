@@ -82,7 +82,7 @@
     "cors": "^2.8.6",
     "crypto-js": "^4.2.0",
     "dayjs": "^1.11.21",
-    "dompurify": "^3.4.8",
+    "dompurify": "^3.4.10",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.2",
