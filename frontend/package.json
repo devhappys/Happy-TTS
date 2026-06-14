@@ -48,7 +48,7 @@
     "crypto-js": "^4.2.0",
     "date-fns": "^4.4.0",
     "docx": "^9.7.1",
-    "dompurify": "^3.4.8",
+    "dompurify": "^3.4.10",
     "express-rate-limit": "^8.5.2",
     "form-data": "^4.0.5",
     "framer-motion": "^12.40.0",
