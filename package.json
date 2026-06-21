@@ -113,7 +113,7 @@
     "serve": "^14.2.6",
     "socks-proxy-agent": "^10.1.0",
     "speakeasy": "^2.0.0",
-    "svix": "^1.95.2",
+    "svix": "^1.96.0",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1",
     "synapse": "file:",
