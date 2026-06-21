@@ -103,7 +103,7 @@
     "morgan": "^1.11.0",
     "multer": "^2.1.1",
     "mysql2": "^3.22.5",
-    "nanoid": "^5.1.11",
+    "nanoid": "^5.1.15",
     "openai": "^6.42.0",
     "path-to-regexp": "^8.4.2",
     "qrcode": "^1.5.4",
