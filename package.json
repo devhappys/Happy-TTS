@@ -104,7 +104,7 @@
     "multer": "^2.1.1",
     "mysql2": "^3.22.5",
     "nanoid": "^5.1.11",
-    "openai": "^6.42.0",
+    "openai": "^6.44.0",
     "path-to-regexp": "^8.4.2",
     "qrcode": "^1.5.4",
     "react-syntax-highlighter": "^16.1.1",
