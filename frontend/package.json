@@ -36,7 +36,7 @@
     "@radix-ui/react-dialog": "^1.1.17",
     "@react-email/components": "1.0.12",
     "@simplewebauthn/browser": "^13.3.0",
-    "@simplewebauthn/server": "^13.3.1",
+    "@simplewebauthn/server": "^13.3.2",
     "@types/bcrypt": "^6.0.0",
     "@types/jsdom": "^28.0.3",
     "@types/jsonwebtoken": "^9.0.10",
