@@ -99,7 +99,7 @@
     "marked": "^18.0.5",
     "mongodb": "^7.3.0",
     "mongodb-connection-string-url": "^7.0.1",
-    "mongoose": "^9.7.2",
+    "mongoose": "^9.7.3",
     "morgan": "^1.11.0",
     "multer": "^2.2.0",
     "mysql2": "^3.22.5",
