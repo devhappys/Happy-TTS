@@ -144,7 +144,7 @@
     "@types/tar": "^7.0.87",
     "@types/ws": "^8.18.1",
     "concurrently": "^10.0.3",
-    "fast-check": "^4.8.0",
+    "fast-check": "^4.9.0",
     "javascript-obfuscator": "^5.4.3",
     "jest": "^30.4.2",
     "nodemon": "^3.1.14",
