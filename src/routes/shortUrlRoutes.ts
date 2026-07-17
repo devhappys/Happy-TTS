@@ -10,6 +10,14 @@ import { ShortUrlService } from "../services/shortUrlService";
 import { config } from "../config/config";
 
 const router = Router();
+
+const codeqlAuthLimiter = createLimiter({
+  name: "codeqlAuthLimiter",
+  profile: "auth",
+  category: "auth",
+  message: "请求过于频繁，请稍后再试",
+});
+
 const redirectRouter = Router();
 const shortUrlApiKeyAuth = apiKeyAuth("shorturl");
 

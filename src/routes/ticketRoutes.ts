@@ -3,8 +3,17 @@ import type { NextFunction, Request, Response } from "express";
 import { ticketController } from "../controllers/ticketController";
 import { authenticateToken } from "../middleware/authenticateToken";
 import { ticketAdminLimiter, ticketReadLimiter, ticketWriteLimiter } from "../middleware/routeLimiters";
+import { createLimiter } from "../middleware/routeLimiters";
 
 const router = express.Router();
+
+const codeqlAuthLimiter = createLimiter({
+  name: "codeqlAuthLimiter",
+  profile: "auth",
+  category: "auth",
+  message: "请求过于频繁，请稍后再试",
+});
+
 
 // 所有工单接口都需要登录
 router.use(authenticateToken);

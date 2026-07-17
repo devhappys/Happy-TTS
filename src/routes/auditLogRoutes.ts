@@ -3,8 +3,17 @@ import { authenticateAdmin } from "../middleware/auth";
 import { type AuditLogQueryParams, AuditLogService } from "../services/auditLogService";
 import { firstString } from "../utils/httpParam";
 import logger from "../utils/logger";
+import { createLimiter } from "../middleware/routeLimiters";
 
 const router = Router();
+
+const codeqlAuthLimiter = createLimiter({
+  name: "codeqlAuthLimiter",
+  profile: "auth",
+  category: "auth",
+  message: "请求过于频繁，请稍后再试",
+});
+
 
 router.use(authenticateAdmin);
 

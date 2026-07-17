@@ -6,8 +6,17 @@ import { libreChatService } from "../services/libreChatService";
 import { toChatMessagesView } from "../services/librechat/diagnostics";
 import { mongoose } from "../services/mongoService";
 import logger from "../utils/logger";
+import { createLimiter } from "../middleware/routeLimiters";
 
 const router = Router();
+
+const codeqlAuthLimiter = createLimiter({
+  name: "codeqlAuthLimiter",
+  profile: "auth",
+  category: "auth",
+  message: "请求过于频繁，请稍后再试",
+});
+
 // 与前端保持一致的消息长度上限（以字符近似 tokens 上限）
 const MAX_MESSAGE_LEN = 4096;
 const DEFAULT_PAGE = 1;

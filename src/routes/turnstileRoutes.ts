@@ -37,6 +37,7 @@ import {
   verifyHCaptcha,
 } from "../controllers/turnstile/hcaptchaHandlers";
 import { getSyncStatus, syncIpBans } from "../controllers/turnstile/syncHandlers";
+import { createLimiter } from "../middleware/routeLimiters";
 import {
   adminLimiter,
   authenticatedFingerprintLimiter,
@@ -46,6 +47,14 @@ import {
 } from "../controllers/turnstile/limiters";
 
 const router = express.Router();
+
+const codeqlAuthLimiter = createLimiter({
+  name: "codeqlAuthLimiter",
+  profile: "auth",
+  category: "auth",
+  message: "请求过于频繁，请稍后再试",
+});
+
 
 // 指纹上报与验证
 router.post("/fingerprint/report", authenticateToken, authenticatedFingerprintLimiter, reportFingerprint);
