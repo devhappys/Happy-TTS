@@ -224,6 +224,14 @@ const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ initialView = 'keys' }) =
   const [adjustReason, setAdjustReason] = useState('');
   const [adjusting, setAdjusting] = useState(false);
 
+  // LINUX DO Credit recharge UI state
+  const [linuxDoCreditConfig, setLinuxDoCreditConfig] = useState<LinuxDoCreditConfig | null>(null);
+  const [rechargeKey, setRechargeKey] = useState<ApiKeyItem | null>(null);
+  const [rechargeMoney, setRechargeMoney] = useState<number | ''>(10);
+  const [recharging, setRecharging] = useState(false);
+  const [rechargeOrders, setRechargeOrders] = useState<LinuxDoCreditOrder[]>([]);
+  const [pendingOutTradeNo, setPendingOutTradeNo] = useState<string | null>(null);
+
   useEffect(() => setView(initialView), [initialView]);
 
   const permissionMap = useMemo(
