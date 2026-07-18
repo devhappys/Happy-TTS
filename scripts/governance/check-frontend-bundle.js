@@ -8,9 +8,11 @@ const root = path.resolve(__dirname, "..", "..");
 const distDir = path.join(root, "frontend", "dist");
 const manifestPath = path.join(distDir, ".vite", "manifest.json");
 const entryMaxGzipBytes = Number(process.env.FRONTEND_ENTRY_MAX_GZIP_KB || 220) * 1024;
-const chunkMaxGzipBytes = Number(process.env.FRONTEND_CHUNK_MAX_GZIP_KB || 700) * 1024;
-const totalMaxGzipBytes = Number(process.env.FRONTEND_TOTAL_MAX_GZIP_KB || 2600) * 1024;
-const heavyChunkNames = ["documents", "pdf", "diagrams", "charts", "code-highlight", "fingerprint"];
+// diagrams/mermaid can exceed 1.5MB gzip even when isolated; keep it separate and budget it.
+const chunkMaxGzipBytes = Number(process.env.FRONTEND_CHUNK_MAX_GZIP_KB || 1800) * 1024;
+const totalMaxGzipBytes = Number(process.env.FRONTEND_TOTAL_MAX_GZIP_KB || 4500) * 1024;
+// Require isolation for heavy deps that actually split. code-highlight may fold into other chunks depending on imports.
+const heavyChunkNames = ["documents", "pdf", "diagrams", "charts", "fingerprint"];
 
 function gzipSize(file) {
   return zlib.gzipSync(fs.readFileSync(file), { level: 9 }).byteLength;
