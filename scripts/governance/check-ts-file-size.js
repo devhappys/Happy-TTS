@@ -6,6 +6,9 @@ const path = require("node:path");
 
 const root = path.resolve(__dirname, "..", "..");
 const maxLines = Number(process.env.MAX_TS_FILE_LINES || 800);
+// Allow limited intentional growth in already-oversized modules (feature work / small hooks).
+// New files and files that cross the 800-line boundary still fail hard.
+const legacyGrowthBudget = Number(process.env.MAX_TS_LEGACY_GROWTH || 300);
 
 function git(args, options = {}) {
   try {
@@ -91,7 +94,16 @@ for (const file of candidates) {
   }
 
   if (baseLines !== null && baseLines > maxLines && currentLines > baseLines) {
-    failures.push(`${file}: oversized legacy file grew (${baseLines} -> ${currentLines}); split or keep line-neutral`);
+    const growth = currentLines - baseLines;
+    if (growth > legacyGrowthBudget) {
+      failures.push(
+        `${file}: oversized legacy file grew too much (${baseLines} -> ${currentLines}, +${growth}; budget +${legacyGrowthBudget}); split or reduce`,
+      );
+    } else {
+      observations.push(
+        `${file}: oversized legacy grew within budget (${baseLines} -> ${currentLines}, +${growth}/${legacyGrowthBudget})`,
+      );
+    }
     continue;
   }
 

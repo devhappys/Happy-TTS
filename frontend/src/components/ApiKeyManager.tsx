@@ -1172,11 +1172,12 @@ const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ initialView = 'keys' }) =
                       <motion.button onClick={() => startEdit(key)} title="编辑" className="rounded p-2 text-sky-600 transition hover:bg-sky-50 sm:p-1.5" whileTap={{ scale: 0.9 }}>
                         <FaEdit />
                       </motion.button>
-                      <                      {(key.billingMode || 'metered') === 'prepaid' && (
+                      {(key.billingMode || 'metered') === 'prepaid' && (
                         <motion.button onClick={() => openRecharge(key)} title="LINUX DO Credit 充值" className="rounded p-2 text-indigo-600 transition hover:bg-indigo-50 sm:p-1.5" whileTap={{ scale: 0.9 }}>
                           <FaCreditCard />
                         </motion.button>
-                      )}motion.button onClick={() => { setView('billing'); fetchBillingEvents(key); }} title="计费流水" className="rounded p-2 text-emerald-600 transition hover:bg-emerald-50 sm:p-1.5" whileTap={{ scale: 0.9 }}>
+                      )}
+                      <motion.button onClick={() => { setView('billing'); fetchBillingEvents(key); }} title="计费流水" className="rounded p-2 text-emerald-600 transition hover:bg-emerald-50 sm:p-1.5" whileTap={{ scale: 0.9 }}>
                         <FaReceipt />
                       </motion.button>
                       {key.enabled ? (

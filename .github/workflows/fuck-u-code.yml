@@ -32,7 +32,15 @@ jobs:
 
       - name: Install fuck-u-code
         run: |
-          go install github.com/Done-0/fuck-u-code/cmd/fuck-u-code@v2.2.1
+          # v2 module path is incompatible with the old cmd/ package install.
+          # Prefer the latest module-compatible release; fall back to building from tag.
+          set -euo pipefail
+          if ! go install github.com/Done-0/fuck-u-code@v1.0.0-beta.1; then
+            tmpdir="$(mktemp -d)"
+            git clone --depth 1 --branch v2.2.1 https://github.com/Done-0/fuck-u-code.git "$tmpdir/fuck-u-code"
+            (cd "$tmpdir/fuck-u-code" && go build -o "$HOME/go/bin/fuck-u-code" .)
+          fi
+          command -v fuck-u-code
 
       - name: Run analysis (Markdown)
         shell: bash

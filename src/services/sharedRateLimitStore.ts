@@ -1,5 +1,5 @@
 import type { IncrementResponse, Options, Store } from "express-rate-limit";
-import { createClient } from "redis";
+import { createClient, type RedisClientType } from "redis";
 import { startupConfig } from "../config/config";
 import logger from "../utils/logger";
 import { mongoose } from "./mongoService";
@@ -30,7 +30,8 @@ const SharedRateLimitModel =
   (mongoose.models.SharedRateLimit as mongoose.Model<SharedRateLimitDocument>) ||
   mongoose.model<SharedRateLimitDocument>("SharedRateLimit", SharedRateLimitSchema);
 
-type RedisClientInstance = ReturnType<typeof createClient>;
+// Keep Redis typing aligned with redisService to avoid createClient generic variance issues.
+type RedisClientInstance = RedisClientType;
 
 type MongoCounterModel = Pick<mongoose.Model<SharedRateLimitDocument>, "findOneAndUpdate" | "deleteOne" | "deleteMany">;
 
@@ -238,7 +239,7 @@ class RedisClientFactory {
 
     RedisClientFactory.clientPromise = (async () => {
       try {
-        const client = createClient({ url: startupConfig.redis.url });
+        const client = createClient({ url: startupConfig.redis.url }) as RedisClientInstance;
         client.on("error", (error) => {
           logger.error("[RateLimit][Redis] Redis error", {
             error: error instanceof Error ? error.message : String(error),

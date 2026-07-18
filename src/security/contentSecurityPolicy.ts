@@ -151,7 +151,36 @@ function buildConnectSrc(): string[] {
  * - style-src-attr: unsafe-inline kept for React style props + Swagger SVG attrs
  * - script-src-attr: none (blocks inline event handlers)
  */
-export function buildHelmetCspDirectives(): Record<string, Array<string | ((req: Request, res: Response) => string)>> {
+type HelmetCspDirectiveValue =
+  | string
+  | ((req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse) => string);
+
+/**
+ * Helmet CSP directives. Callback form uses IncomingMessage/ServerResponse so the
+ * return type is assignable to helmet's ContentSecurityPolicyDirectives.
+ */
+export function buildHelmetCspDirectives(): Record<string, Iterable<HelmetCspDirectiveValue>> {
+  const asHttpNonceSource = (
+    _req: import("node:http").IncomingMessage,
+    res: import("node:http").ServerResponse,
+  ): string => {
+    const expressRes = res as unknown as Response;
+    return `'nonce-${ensureCspNonce(expressRes)}'`;
+  };
+
+  const asHttpStyleElementSource = (
+    req: import("node:http").IncomingMessage,
+    res: import("node:http").ServerResponse,
+  ): string => {
+    const expressRes = res as unknown as Response;
+    const expressReq = req as unknown as Request;
+    const surface = expressRes.locals?.cspSurface || resolveCspSurface(expressReq.path || "/");
+    if (surface === "docs") {
+      return "'unsafe-inline'";
+    }
+    return `'nonce-${ensureCspNonce(expressRes)}'`;
+  };
+
   return {
     defaultSrc: ["'self'"],
     baseUri: ["'self'"],
@@ -161,11 +190,11 @@ export function buildHelmetCspDirectives(): Record<string, Array<string | ((req:
     imgSrc: ["'self'", "data:", "blob:", "https:"],
     // Frontend bundles may inline woff2 as data URLs.
     fontSrc: ["'self'", "data:", "https://fonts.gstatic.com", "https://fonts.googleapis.com"],
-    scriptSrc: ["'self'", nonceSource, ...THIRD_PARTY_SCRIPT_HOSTS],
-    scriptSrcElem: ["'self'", nonceSource, ...THIRD_PARTY_SCRIPT_HOSTS],
+    scriptSrc: ["'self'", asHttpNonceSource, ...THIRD_PARTY_SCRIPT_HOSTS],
+    scriptSrcElem: ["'self'", asHttpNonceSource, ...THIRD_PARTY_SCRIPT_HOSTS],
     scriptSrcAttr: ["'none'"],
-    styleSrc: ["'self'", styleElementSource, ...THIRD_PARTY_STYLE_HOSTS],
-    styleSrcElem: ["'self'", styleElementSource, ...THIRD_PARTY_STYLE_HOSTS],
+    styleSrc: ["'self'", asHttpStyleElementSource, ...THIRD_PARTY_STYLE_HOSTS],
+    styleSrcElem: ["'self'", asHttpStyleElementSource, ...THIRD_PARTY_STYLE_HOSTS],
     // Required for React runtime style props and Swagger UI SVG style attributes.
     styleSrcAttr: ["'unsafe-inline'"],
     connectSrc: buildConnectSrc(),
