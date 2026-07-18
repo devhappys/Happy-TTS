@@ -4,6 +4,7 @@ import path from "node:path";
 import type { Express } from "express";
 import { compileTimeConfig, config, startupConfig } from "../config/config";
 import { runStartupDiagnostics } from "../config/startupDiagnostics";
+import { startApiKeyBillingReconciliation } from "../services/apiKeyBillingService";
 import { startEmbeddedRustServices } from "../services/embeddedRustServices";
 import { connectMongo } from "../services/mongoService";
 import { schedulerService } from "../services/schedulerService";
@@ -170,6 +171,7 @@ export async function startServer(app: Express): Promise<void> {
     configured: Boolean(config.generationCodeConfigured),
   });
   UserStorage.initializeMongoListener();
+  startApiKeyBillingReconciliation();
 
   try {
     schedulerService.start();

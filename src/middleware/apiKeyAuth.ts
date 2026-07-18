@@ -68,8 +68,8 @@ export function apiKeyAuth(requiredPermission: string) {
         return res.status(503).json({ error: "API Key 限流服务暂不可用，请稍后再试" });
       }
       const statusCode = typeof (err as any)?.statusCode === "number" ? (err as any).statusCode : 500;
-      if (statusCode === 402) {
-        return res.status(402).json({ error: err instanceof Error ? err.message : "API Key 余额不足" });
+      if (statusCode !== 500) {
+        return res.status(statusCode).json({ error: err instanceof Error ? err.message : "API Key 计费失败" });
       }
       logger.error("[ApiKeyAuth] 验证失败", err);
       return res.status(500).json({ error: "API Key 验证失败" });
