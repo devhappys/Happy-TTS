@@ -99,37 +99,136 @@ if (fs.existsSync(logRoutes)) {
 // 4) Workflow supply-chain hygiene
 const workflowDir = path.join(root, ".github", "workflows");
 const workflows = walk(workflowDir, (file) => file.endsWith(".yml") || file.endsWith(".yaml"));
+const pinnedActionRe = /uses:\s*[^\s@]+@[0-9a-f]{40}\b/i;
+const mutableTagRe = /uses:\s*\S+@(main|master|latest)\b/i;
+const floatingTagRe = /uses:\s*[^\s@]+@(?![0-9a-f]{40}\b)[A-Za-z0-9._/-]+/i;
+const userPatWriteRe = /secrets\.USER_PAT/;
+
 for (const file of workflows) {
-  const lines = read(file).split(/\r?\n/);
+  const relative = path.relative(root, file);
+  const content = read(file);
+  const lines = content.split(/\r?\n/);
+
   lines.forEach((line, idx) => {
-    if (/uses:\s*\S+@main\b/.test(line) || /uses:\s*\S+@master\b/.test(line)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) return;
+
+    if (mutableTagRe.test(line) || /uses:\s*\S+@stable\b/.test(line)) {
       findings.push({
         rule: "no-mutable-action-ref",
-        file: path.relative(root, file),
+        file: relative,
         line: idx + 1,
-        detail: line.trim(),
+        detail: trimmed,
       });
     }
-    if (/node-version:\s*['"]?latest['"]?/.test(line) || /version:\s*['"]?latest['"]?/.test(line)) {
+
+    if (/^\s*-\s*uses:/.test(line) || /^\s*uses:/.test(line)) {
+      if (floatingTagRe.test(line) && !pinnedActionRe.test(line)) {
+        findings.push({
+          rule: "require-pinned-action-sha",
+          file: relative,
+          line: idx + 1,
+          detail: trimmed,
+        });
+      }
+    }
+
+    if (/node-version:\s*['"]?latest['"]?/.test(line) || /(?:^|\s)version:\s*['"]?latest['"]?/.test(line)) {
       findings.push({
         rule: "no-latest-toolchain",
-        file: path.relative(root, file),
+        file: relative,
         line: idx + 1,
-        detail: line.trim(),
+        detail: trimmed,
       });
     }
+
     if (/--no-frozen-lockfile/.test(line)) {
       findings.push({
         rule: "no-unfrozen-lockfile",
-        file: path.relative(root, file),
+        file: relative,
         line: idx + 1,
-        detail: line.trim(),
+        detail: trimmed,
+      });
+    }
+
+    if (/(^|[^A-Za-z0-9_-])force-merge([^A-Za-z0-9_-]|$)/.test(line) && !/intentionally disabled|unsupported action/i.test(line)) {
+      findings.push({
+        rule: "no-force-merge-action",
+        file: relative,
+        line: idx + 1,
+        detail: trimmed,
       });
     }
   });
+
+  // USER_PAT may only appear as optional read-only Dependabot alert access.
+  if (userPatWriteRe.test(content)) {
+    const allowedFile = relative.replace(/\\/g, "/") === ".github/workflows/dependabot-maintenance.yml";
+    const hasReadOnlyComment = /USER_PAT is optional read-only access for Dependabot alerts only/i.test(content);
+    if (!allowedFile || !hasReadOnlyComment) {
+      findings.push({
+        rule: "minimize-user-pat",
+        file: relative,
+        line: 1,
+        detail: "USER_PAT must only be used as optional read-only Dependabot alerts access in dependabot-maintenance.yml",
+      });
+    }
+  }
 }
 
-// 5) Frontend runtime dependency denylist
+// 5) Auto-merge script must enforce head SHA, required checks, and approvals
+const autoMergePath = path.join(root, "scripts", "auto-merge.js");
+if (!fs.existsSync(autoMergePath)) {
+  findings.push({
+    rule: "auto-merge-script-present",
+    file: "scripts/auto-merge.js",
+    line: 1,
+    detail: "scripts/auto-merge.js is required for hardened auto-merge",
+  });
+} else {
+  const autoMerge = read(autoMergePath);
+  const requiredSnippets = [
+    ["normalizeSha", "head SHA normalization"],
+    ["sha:", "merge API sha binding"],
+    ["required_status_checks", "required checks from repository rules"],
+    ["APPROVED", "approval state"],
+    ["automerge", "automerge label gate"],
+    ["mergeStateStatus", "repository merge state"],
+  ];
+  for (const [snippet, label] of requiredSnippets) {
+    if (!autoMerge.includes(snippet)) {
+      findings.push({
+        rule: "auto-merge-hardening",
+        file: "scripts/auto-merge.js",
+        line: 1,
+        detail: `missing ${label} (${snippet})`,
+      });
+    }
+  }
+}
+
+// 6) Rust toolchain must be pinned
+const rustToolchainPath = path.join(root, "rust-toolchain.toml");
+if (!fs.existsSync(rustToolchainPath)) {
+  findings.push({
+    rule: "rust-toolchain-pinned",
+    file: "rust-toolchain.toml",
+    line: 1,
+    detail: "rust-toolchain.toml is required",
+  });
+} else {
+  const toolchain = read(rustToolchainPath);
+  if (!/channel\s*=\s*["']1\.89\.0["']/.test(toolchain)) {
+    findings.push({
+      rule: "rust-toolchain-pinned",
+      file: "rust-toolchain.toml",
+      line: 1,
+      detail: "channel must be pinned to 1.89.0",
+    });
+  }
+}
+
+// 7) Frontend runtime dependency denylist
 const frontendPkgPath = path.join(root, "frontend", "package.json");
 const deny = [
   "@prisma/client",
@@ -156,6 +255,17 @@ if (fs.existsSync(frontendPkgPath)) {
       });
     }
   }
+}
+
+// 8) force-merge helper must not remain in scripts/
+const forceMergePath = path.join(root, "scripts", "force-merge-dependabot.js");
+if (fs.existsSync(forceMergePath)) {
+  findings.push({
+    rule: "no-force-merge-script",
+    file: "scripts/force-merge-dependabot.js",
+    line: 1,
+    detail: "force-merge helper bypasses approval/required-check policy",
+  });
 }
 
 // 6) GENERATION_CODE must never default to a predictable value and must enforce strength policy.
@@ -368,6 +478,7 @@ for (const file of scanFiles) {
     }
   });
 }
+
 
 if (findings.length) {
   console.error("Audit policy check failed:");
