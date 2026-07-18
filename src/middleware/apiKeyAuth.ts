@@ -5,6 +5,7 @@ import { UserStorage } from "../utils/userStorage";
 import { attachApiKeyBillingFinalizer, preauthorizeApiKeyBilling } from "../services/apiKeyBillingService";
 import { apiKeyRateLimiter, SharedRateLimitUnavailableError } from "../services/apiKeyRateLimitService";
 import { oauthTokenAuth } from "./oauthTokenAuth";
+import type { AuthenticatedRequest } from "../types/authRequest";
 
 /**
  * API Key 认证中间件工厂
@@ -14,8 +15,9 @@ export function apiKeyAuth(requiredPermission: string) {
   const oauthAuth = oauthTokenAuth(requiredPermission, { optional: true });
 
   return async (req: Request, res: Response, next: NextFunction) => {
+    const authReq = req as AuthenticatedRequest;
     // 如果已经通过 JWT 认证（req.user 存在），直接放行
-    if ((req as any).user) return next();
+    if (authReq.user) return next();
 
     const header = req.headers["x-api-key"] as string | undefined;
     if (!header) return oauthAuth(req, res, next); // 没有 API Key 时尝试 OAuth Bearer，仍没有则交给后续链路
@@ -57,8 +59,15 @@ export function apiKeyAuth(requiredPermission: string) {
       recordUsage(doc.keyId, ip).catch(() => {}); // fire-and-forget
 
       // 注入用户信息，使下游中间件/控制器可用
-      (req as any).user = { id: doc.userId, username: owner.username || `apikey:${doc.keyId}`, role: "user" };
-      (req as any).apiKey = doc;
+      // API Key 路径历史上不继承管理员角色，保持兼容。
+      const apiKeyUser = {
+        id: doc.userId,
+        username: owner.username || `apikey:${doc.keyId}`,
+        role: "user" as const,
+      } as typeof owner;
+      authReq.user = apiKeyUser;
+      authReq.apiKey = doc;
+      authReq.auth = { kind: "apiKey", user: apiKeyUser, apiKey: doc };
 
       next();
     } catch (err) {
