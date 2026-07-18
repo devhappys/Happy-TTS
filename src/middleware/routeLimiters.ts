@@ -401,6 +401,11 @@ const LIMITER_DEFINITIONS = {
     category: "public-api",
     message: "GitHub Billing请求过于频繁，请稍后再试",
   },
+  linuxdocredit: {
+    profile: "sensitive",
+    category: "public-api",
+    message: "LINUX DO Credit 请求过于频繁，请稍后再试",
+  },
   deeplx: {
     profile: "verification",
     category: "public-api",
@@ -534,6 +539,7 @@ export const audioFileLimiter = limiterFromDefinition("audio");
 export const modlistMountLimiter = limiterFromDefinition("modlist");
 export const cdkMountLimiter = limiterFromDefinition("cdk");
 export const githubBillingLimiter = limiterFromDefinition("ghbilling");
+export const linuxDoCreditLimiter = limiterFromDefinition("linuxdocredit");
 export const deeplxLimiter = limiterFromDefinition("deeplx");
 export const deeplxPublicLimiter = limiterFromDefinition("deeplxPublic");
 export const integrityLimiter = limiterFromDefinition("integrity");

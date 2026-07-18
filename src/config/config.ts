@@ -11,6 +11,7 @@ import {
   type GoogleAuthRuntimeConfig,
   type IpqsRuntimeConfig,
   type LinuxDoRuntimeConfig,
+  type LinuxDoCreditRuntimeConfig,
   type NexaiRuntimeConfig,
   type TtsRuntimeConfig,
 } from "./runtimeConfigDefaults";
@@ -136,6 +137,17 @@ const envSchema = z
       .enum(["auto", "jpg", "jpeg", "png", "webp", "gif", "webp_animated"])
       .optional(),
     INTERNAL_SERVICE_TOKEN: optionalTrimmedString,
+    // LINUX DO Credit (积分支付)
+    LINUXDO_CREDIT_ENABLED: stringToBoolean,
+    LINUXDO_CREDIT_PID: optionalTrimmedString,
+    LINUXDO_CREDIT_KEY: optionalTrimmedString,
+    LINUXDO_CREDIT_PROTOCOL: z.enum(["epay", "ldc"]).optional(),
+    LINUXDO_CREDIT_GATEWAY_BASE: z.string().url().optional(),
+    LINUXDO_CREDIT_PRIVATE_KEY: optionalTrimmedString,
+    LINUXDO_CREDIT_RATE: z.coerce.number().positive().max(1_000_000).optional(),
+    LINUXDO_CREDIT_MAX_MONEY: z.coerce.number().positive().max(1_000_000).optional(),
+    LINUXDO_CREDIT_NOTIFY_URL: z.string().url().optional(),
+    LINUXDO_CREDIT_RETURN_URL: z.string().url().optional(),
     RUST_IPC_ENABLED: stringToBoolean,
     RUST_IPC_DIR: optionalTrimmedString,
     RUST_IPC_CHANNEL_BYTES: z.coerce
@@ -368,6 +380,26 @@ const runtimeDefaults = buildRuntimeConfigDefaults({
   synapseAndroidDisabled: parsedEnv.SYNAPSE_ANDROID_DISABLED,
 });
 
+// LINUX DO Credit merchant credentials come from env (not Mongo runtime mutable keys).
+runtimeDefaults.linuxdoCredit = {
+  ...runtimeDefaults.linuxdoCredit,
+  enabled: parsedEnv.LINUXDO_CREDIT_ENABLED === true,
+  pid: parsedEnv.LINUXDO_CREDIT_PID || "",
+  key: parsedEnv.LINUXDO_CREDIT_KEY || "",
+  protocol: parsedEnv.LINUXDO_CREDIT_PROTOCOL || "epay",
+  gatewayBase: (parsedEnv.LINUXDO_CREDIT_GATEWAY_BASE || runtimeDefaults.linuxdoCredit.gatewayBase).replace(
+    /\/+$/,
+    "",
+  ),
+  privateKey: (parsedEnv.LINUXDO_CREDIT_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+  creditRate: parsedEnv.LINUXDO_CREDIT_RATE || runtimeDefaults.linuxdoCredit.creditRate,
+  maxMoney: parsedEnv.LINUXDO_CREDIT_MAX_MONEY || runtimeDefaults.linuxdoCredit.maxMoney,
+  notifyUrl: parsedEnv.LINUXDO_CREDIT_NOTIFY_URL || runtimeDefaults.linuxdoCredit.notifyUrl,
+  returnUrl: parsedEnv.LINUXDO_CREDIT_RETURN_URL || runtimeDefaults.linuxdoCredit.returnUrl,
+};
+
+const linuxDoCreditConfig: LinuxDoCreditRuntimeConfig = { ...runtimeDefaults.linuxdoCredit };
+
 RuntimeConfigService.configureDefaults(runtimeDefaults);
 
 export const startupConfig = Object.freeze({
@@ -578,6 +610,10 @@ export const config = {
   },
   get linuxdo() {
     return runtimeMutableConfig.linuxdo;
+  },
+  /** LINUX DO Credit merchant config (env-backed). */
+  get linuxdoCredit(): LinuxDoCreditRuntimeConfig {
+    return linuxDoCreditConfig;
   },
   get googleAuth() {
     return runtimeMutableConfig.googleAuth;
