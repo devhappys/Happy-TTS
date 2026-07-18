@@ -158,6 +158,217 @@ if (fs.existsSync(frontendPkgPath)) {
   }
 }
 
+// 6) GENERATION_CODE must never default to a predictable value and must enforce strength policy.
+const configTs = path.join(root, "src", "config", "config.ts");
+if (fs.existsSync(configTs)) {
+  const text = read(configTs);
+  const lines = text.split(/\r?\n/);
+  lines.forEach((line, idx) => {
+    if (/GENERATION_CODE\s*:\s*z\.string\(\)[^,\n]*\.default\(\s*["'`]admin["'`]\s*\)/.test(line)) {
+      findings.push({
+        rule: "no-weak-generation-code-default",
+        file: path.relative(root, configTs),
+        line: idx + 1,
+        detail: line.trim().slice(0, 160),
+      });
+    }
+    if (/GENERATION_CODE\s*=\s*["'`]admin["'`]/.test(line)) {
+      findings.push({
+        rule: "no-weak-generation-code-default",
+        file: path.relative(root, configTs),
+        line: idx + 1,
+        detail: line.trim().slice(0, 160),
+      });
+    }
+  });
+  if (!/generationCodePolicy|validateGenerationCodeStrength/.test(text)) {
+    findings.push({
+      rule: "generation-code-strength-enforced",
+      file: path.relative(root, configTs),
+      line: 1,
+      detail: "config.ts must enforce generation-code strength via generationCodePolicy",
+    });
+  }
+}
+
+const generationCodePolicyTs = path.join(root, "src", "utils", "generationCodePolicy.ts");
+if (!fs.existsSync(generationCodePolicyTs)) {
+  findings.push({
+    rule: "generation-code-strength-enforced",
+    file: "src/utils/generationCodePolicy.ts",
+    line: 1,
+    detail: "missing generationCodePolicy utility",
+  });
+} else {
+  const policyText = read(generationCodePolicyTs);
+  if (!/GENERATION_CODE_MIN_LENGTH\s*=\s*24/.test(policyText)) {
+    findings.push({
+      rule: "generation-code-strength-enforced",
+      file: path.relative(root, generationCodePolicyTs),
+      line: 1,
+      detail: "GENERATION_CODE_MIN_LENGTH must be 24",
+    });
+  }
+}
+
+// 7) Startup logs must never emit the generation-code value — only a configured boolean.
+const startupTs = path.join(root, "src", "app", "startup.ts");
+if (fs.existsSync(startupTs)) {
+  const text = read(startupTs);
+  const lines = text.split(/\r?\n/);
+  lines.forEach((line, idx) => {
+    if (/当前生成码/.test(line) || /\$\{[^}]*generationCode/.test(line)) {
+      findings.push({
+        rule: "no-generation-code-logging",
+        file: path.relative(root, startupTs),
+        line: idx + 1,
+        detail: line.trim().slice(0, 160),
+      });
+    }
+  });
+  if (!/generationCodeConfigured/.test(text)) {
+    findings.push({
+      rule: "no-generation-code-logging",
+      file: path.relative(root, startupTs),
+      line: 1,
+      detail: "startup must log generationCodeConfigured boolean only",
+    });
+  }
+}
+
+// Broader scan: never log generation code values from src (excluding tests).
+const backendSrcFiles = walk(
+  path.join(root, "src"),
+  (file) => /\.(ts|tsx|js)$/.test(file) && !file.includes(`${path.sep}tests${path.sep}`),
+);
+for (const file of backendSrcFiles) {
+  const lines = read(file).split(/\r?\n/);
+  lines.forEach((line, idx) => {
+    if (!/logger\.(info|warn|error|debug|verbose)\s*\(/.test(line) && !/console\.(log|info|warn|error|debug)\s*\(/.test(line)) {
+      return;
+    }
+    if (/当前生成码/.test(line) || /\$\{[^}]*generationCode/.test(line)) {
+      findings.push({
+        rule: "no-generation-code-logging",
+        file: path.relative(root, file),
+        line: idx + 1,
+        detail: line.trim().slice(0, 160),
+      });
+    }
+  });
+}
+
+// 8) MySQL adapters must not ship weak root:password defaults; enabling mysql requires MYSQL_URI.
+const mysqlAdapterFiles = [
+  path.join(root, "src", "services", "lotteryStorage", "mysql.ts"),
+  path.join(root, "src", "services", "modlistStorage", "mysql.ts"),
+  path.join(root, "src", "services", "userGenerationStorage", "mysql.ts"),
+];
+for (const file of mysqlAdapterFiles) {
+  if (!fs.existsSync(file)) continue;
+  const text = read(file);
+  const lines = text.split(/\r?\n/);
+  lines.forEach((line, idx) => {
+    if (/mysql:\/\/root:password@/i.test(line) && !line.trim().startsWith("//") && !line.includes("reject")) {
+      findings.push({
+        rule: "no-weak-mysql-uri-default",
+        file: path.relative(root, file),
+        line: idx + 1,
+        detail: line.trim().slice(0, 160),
+      });
+    }
+  });
+  if (!/requireMysqlUri/.test(text)) {
+    findings.push({
+      rule: "mysql-uri-required-when-enabled",
+      file: path.relative(root, file),
+      line: 1,
+      detail: "mysql adapter must call requireMysqlUri()",
+    });
+  }
+}
+
+const storageIndexFiles = [
+  path.join(root, "src", "services", "lotteryStorage", "index.ts"),
+  path.join(root, "src", "services", "modlistStorage", "index.ts"),
+  path.join(root, "src", "services", "userGenerationStorage", "index.ts"),
+];
+for (const file of storageIndexFiles) {
+  if (!fs.existsSync(file)) continue;
+  const text = read(file);
+  if (!/requireMysqlUri/.test(text)) {
+    findings.push({
+      rule: "mysql-uri-required-when-enabled",
+      file: path.relative(root, file),
+      line: 1,
+      detail: "storage index must call requireMysqlUri() before loading mysql adapter",
+    });
+  }
+  if (/mysql:\/\/root:password@/i.test(text)) {
+    findings.push({
+      rule: "no-weak-mysql-uri-default",
+      file: path.relative(root, file),
+      line: 1,
+      detail: "storage index must not embed weak mysql URI defaults",
+    });
+  }
+}
+
+const mysqlUriPolicyTs = path.join(root, "src", "utils", "mysqlUriPolicy.ts");
+if (!fs.existsSync(mysqlUriPolicyTs)) {
+  findings.push({
+    rule: "mysql-uri-required-when-enabled",
+    file: "src/utils/mysqlUriPolicy.ts",
+    line: 1,
+    detail: "missing mysqlUriPolicy utility",
+  });
+} else {
+  const policyText = read(mysqlUriPolicyTs);
+  if (!/MYSQL_URI is required when a storage backend is set to mysql/.test(policyText)) {
+    findings.push({
+      rule: "mysql-uri-required-when-enabled",
+      file: path.relative(root, mysqlUriPolicyTs),
+      line: 1,
+      detail: "mysqlUriPolicy must reject missing MYSQL_URI",
+    });
+  }
+}
+
+// Repo-wide scan (src + scripts) for reintroduced weak mysql defaults.
+// Allow the policy modules / checkers / tests to mention the forbidden string as a detector pattern.
+const allowWeakMysqlMention = new Set(
+  [
+    "scripts/check-audit-policies.js",
+    "scripts/test-audit-policies.js",
+    "scripts/lib/mysqlUriPolicy.js",
+    "src/utils/mysqlUriPolicy.ts",
+  ].map((p) => p.replace(/\//g, path.sep)),
+);
+const scanFiles = walk(path.join(root, "src"), (file) => /\.(ts|tsx|js)$/.test(file)).concat(
+  walk(path.join(root, "scripts"), (file) => /\.(ts|js)$/.test(file)),
+);
+for (const file of scanFiles) {
+  const rel = path.relative(root, file);
+  if (allowWeakMysqlMention.has(rel)) continue;
+  const lines = read(file).split(/\r?\n/);
+  lines.forEach((line, idx) => {
+    // Only flag assignment/default usage, not comments describing the ban.
+    if (
+      /mysql:\/\/root:password@/i.test(line) &&
+      !line.trim().startsWith("//") &&
+      !line.trim().startsWith("*") &&
+      !/reject|forbidden|must not|weak|example/i.test(line)
+    ) {
+      findings.push({
+        rule: "no-weak-mysql-uri-default",
+        file: rel,
+        line: idx + 1,
+        detail: line.trim().slice(0, 160),
+      });
+    }
+  });
+}
+
 if (findings.length) {
   console.error("Audit policy check failed:");
   for (const finding of findings) {

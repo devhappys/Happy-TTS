@@ -14,6 +14,11 @@ import {
   type NexaiRuntimeConfig,
   type TtsRuntimeConfig,
 } from "./runtimeConfigDefaults";
+import {
+  isGenerationCodeConfigured,
+  normalizeGenerationCode,
+  validateGenerationCodeStrength,
+} from "../utils/generationCodePolicy";
 
 dotenv.config();
 
@@ -81,7 +86,9 @@ const envSchema = z
     ADMIN_USERNAME: z.string().optional().default("admin"),
     ADMIN_PASSWORD: optionalTrimmedString,
     ADMIN_OPERATION_PASSWORD: optionalTrimmedString,
-    GENERATION_CODE: z.string().optional().default("admin"),
+    // Empty = shared/anonymous generation-code gate not configured.
+    // Never default to a predictable value such as "admin".
+    GENERATION_CODE: optionalTrimmedString,
     JWT_SECRET: optionalTrimmedString,
     SIGN_SECRET_KEY: optionalTrimmedString,
     JWT_EXPIRES_IN: z
@@ -205,6 +212,18 @@ const envSchema = z
     RUST_SECURITY_WORKER_FALLBACK_ENABLED: stringToBoolean,
   })
   .superRefine((env, ctx) => {
+    const generationCode = normalizeGenerationCode(env.GENERATION_CODE);
+    if (generationCode) {
+      const strength = validateGenerationCodeStrength(generationCode);
+      if (!strength.ok) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["GENERATION_CODE"],
+          message: strength.reason,
+        });
+      }
+    }
+
     if (env.NODE_ENV === "production") {
       if (!env.JWT_SECRET) {
         ctx.addIssue({
@@ -234,6 +253,9 @@ const envSchema = z
           message: "Production requires PUBLIC_SHORT_URL_PASSWORD when PUBLIC_SHORT_URL_ENABLED=true",
         });
       }
+      // Production: when a generation code is supplied (enables shared/anonymous TTS gate),
+      // it must already have passed the high-entropy check above. Empty remains allowed
+      // (shared-code path stays closed until an admin configures a strong code at runtime).
     }
     if (!env.MONGO_URI && !env.MONGODB_URI) {
       ctx.addIssue({
@@ -333,7 +355,7 @@ const runtimeDefaults = buildRuntimeConfigDefaults({
   serverStatusPassword: parsedEnv.SERVER_PASSWORD,
   publicShortUrlEnabled,
   publicShortUrlPassword,
-  generationCode: parsedEnv.GENERATION_CODE,
+  generationCode: normalizeGenerationCode(parsedEnv.GENERATION_CODE),
   email: emailRuntimeDefaults,
   googleClientId: parsedEnv.GOOGLE_CLIENT_ID,
   nexaiGoogleClientId: parsedEnv.NEXAI_GOOGLE_CLIENT_ID || parsedEnv.GOOGLE_CLIENT_ID,
@@ -574,6 +596,9 @@ export const config = {
   },
   get generationCode() {
     return runtimeMutableConfig.tts.generationCode;
+  },
+  get generationCodeConfigured() {
+    return isGenerationCodeConfigured(runtimeMutableConfig.tts.generationCode);
   },
 };
 
