@@ -23,12 +23,19 @@ const ENV_KEYS = [
   "ANDROID_PACKAGE_NAMES",
   "NEXAI_ANDROID_SHA256_CERT_FINGERPRINTS",
   "ANDROID_SHA256_CERT_FINGERPRINTS",
+  "ANDROID_ASSETLINKS_DISABLED",
+  "NEXAI_ANDROID_ASSETLINKS_DISABLED",
 ] as const;
 
 const ENV_SNAPSHOT = Object.fromEntries(ENV_KEYS.map((key) => [key, process.env[key]])) as Record<
   (typeof ENV_KEYS)[number],
   string | undefined
 >;
+
+const SYNAPSE_ANDROID_SNAPSHOT = {
+  ...config.synapseAndroid,
+  sha256CertFingerprints: [...config.synapseAndroid.sha256CertFingerprints],
+};
 
 function resetEnv(): void {
   for (const key of ENV_KEYS) {
@@ -60,11 +67,17 @@ describe("NexAI WebAuthn backend fixes", () => {
     for (const key of ENV_KEYS) {
       delete process.env[key];
     }
+    Object.assign(config.synapseAndroid, SYNAPSE_ANDROID_SNAPSHOT, {
+      sha256CertFingerprints: [...SYNAPSE_ANDROID_SNAPSHOT.sha256CertFingerprints],
+    });
     await NexaiUserModel.deleteMany({});
   });
 
   afterAll(() => {
     resetEnv();
+    Object.assign(config.synapseAndroid, SYNAPSE_ANDROID_SNAPSHOT, {
+      sha256CertFingerprints: [...SYNAPSE_ANDROID_SNAPSHOT.sha256CertFingerprints],
+    });
   });
 
   it("uses tts.chloemlla.com as the default RP ID instead of localhost", () => {
@@ -72,6 +85,13 @@ describe("NexAI WebAuthn backend fixes", () => {
 
     expect(webAuthnConfig.rpID).toBe("tts.chloemlla.com");
     expect(webAuthnConfig.expectedOrigins).toContain("https://tts.chloemlla.com");
+    expect(webAuthnConfig.expectedOrigins).toContain(
+      "android:apk-key-hash:_9HzfCcFGsx_oYdF4QfmF5ooVyYZtj_G902sPaRO184",
+    );
+    // Android Credential Manager may return standard Base64 (`/`) instead of Base64URL (`_`).
+    expect(webAuthnConfig.expectedOrigins).toContain(
+      "android:apk-key-hash:/9HzfCcFGsx/oYdF4QfmF5ooVyYZtj/G902sPaRO184",
+    );
     expect(webAuthnConfig.rpID).not.toBe("localhost");
   });
 
@@ -83,45 +103,136 @@ describe("NexAI WebAuthn backend fixes", () => {
     expect(webAuthnConfig.expectedOrigins).toEqual(
       expect.arrayContaining([
         "https://tts.chloemlla.com",
+        "android:apk-key-hash:_9HzfCcFGsx_oYdF4QfmF5ooVyYZtj_G902sPaRO184",
+        "android:apk-key-hash:/9HzfCcFGsx/oYdF4QfmF5ooVyYZtj/G902sPaRO184",
         "android:apk-key-hash:test-hash-1",
         "android:apk-key-hash:test-hash-2",
       ]),
     );
   });
 
-  it("builds valid assetlinks statements from environment variables", () => {
+  it("accepts standard Base64 apk-key-hash origins from Android clients", () => {
+    process.env.NEXAI_ANDROID_APK_KEY_HASHES =
+      "android:apk-key-hash:/9HzfCcFGsx/oYdF4QfmF5ooVyYZtj/G902sPaRO184";
+
+    const webAuthnConfig = getNexaiWebAuthnConfig();
+
+    expect(webAuthnConfig.expectedOrigins).toEqual(
+      expect.arrayContaining([
+        "android:apk-key-hash:/9HzfCcFGsx/oYdF4QfmF5ooVyYZtj/G902sPaRO184",
+        "android:apk-key-hash:_9HzfCcFGsx_oYdF4QfmF5ooVyYZtj_G902sPaRO184",
+      ]),
+    );
+  });
+
+  it("includes default Synapse Mobile and NexAI assetlinks when no env packages are set", () => {
+    const statements = getNexaiAssetLinksStatements();
+    expect(statements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          relation: ["delegate_permission/common.get_login_creds", "delegate_permission/common.handle_all_urls"],
+          target: expect.objectContaining({
+            namespace: "android_app",
+            package_name: "com.chloemlla.synapse.mobile",
+            sha256_cert_fingerprints: expect.arrayContaining([
+              "E9:D8:5A:D2:52:C3:8D:86:C6:E4:B2:A8:C0:49:B8:B5:A9:FA:79:AC:6E:BB:11:8C:94:0A:83:03:B6:96:39:98",
+            ]),
+          }),
+        }),
+        expect.objectContaining({
+          relation: ["delegate_permission/common.get_login_creds", "delegate_permission/common.handle_all_urls"],
+          target: expect.objectContaining({
+            namespace: "android_app",
+            package_name: "com.synapse.mobile",
+            sha256_cert_fingerprints: expect.arrayContaining([
+              "E9:D8:5A:D2:52:C3:8D:86:C6:E4:B2:A8:C0:49:B8:B5:A9:FA:79:AC:6E:BB:11:8C:94:0A:83:03:B6:96:39:98",
+            ]),
+          }),
+        }),
+        expect.objectContaining({
+          relation: ["delegate_permission/common.get_login_creds", "delegate_permission/common.handle_all_urls"],
+          target: expect.objectContaining({
+            namespace: "android_app",
+            package_name: "com.chloemlla.nexai",
+            sha256_cert_fingerprints: expect.arrayContaining([
+              "FF:D1:F3:7C:27:05:1A:CC:7F:A1:87:45:E1:07:E6:17:9A:28:57:26:19:B6:3F:C6:F7:4D:AC:3D:A4:4E:D7:CE",
+            ]),
+          }),
+        }),
+      ]),
+    );
+  });
+it("ignores empty NEXAI_ANDROID_ASSETLINKS_JSON override and keeps defaults", () => {
+    process.env.NEXAI_ANDROID_ASSETLINKS_JSON = "[]";
+
+    const statements = getNexaiAssetLinksStatements();
+    const packages = statements.map((item) => item.target.package_name);
+
+    expect(packages).toEqual(
+      expect.arrayContaining(["com.chloemlla.nexai", "com.chloemlla.synapse.mobile", "com.synapse.mobile"]),
+    );
+  });
+
+  it("builds valid assetlinks statements from environment variables and keeps default packages", () => {
     process.env.NEXAI_ANDROID_PACKAGE_NAME = "xyz.nexai.app";
     process.env.NEXAI_ANDROID_SHA256_CERT_FINGERPRINTS = "AA:BB:CC,11:22:33";
 
-    expect(getNexaiAssetLinksStatements()).toEqual([
-      {
-        relation: ["delegate_permission/common.get_login_creds", "delegate_permission/common.handle_all_urls"],
-        target: {
-          namespace: "android_app",
-          package_name: "xyz.nexai.app",
-          sha256_cert_fingerprints: ["AA:BB:CC", "11:22:33"],
-        },
-      },
-    ]);
+    const statements = getNexaiAssetLinksStatements();
+    const packages = statements.map((item) => item.target.package_name);
+    expect(packages).toEqual(
+      expect.arrayContaining(["xyz.nexai.app", "com.chloemlla.synapse.mobile", "com.synapse.mobile", "com.chloemlla.nexai"]),
+    );
+
+    const nexai = statements.find((item) => item.target.package_name === "xyz.nexai.app");
+    expect(nexai?.target.sha256_cert_fingerprints).toEqual(
+      expect.arrayContaining(["AA:BB:CC", "11:22:33"]),
+    );
   });
 
-  it("serves /.well-known/assetlinks.json as JSON instead of HTML", async () => {
+  it("upserts the runtime Synapse Android package without removing defaults", () => {
+    Object.assign(config.synapseAndroid, {
+      packageName: "com.synapse.preview",
+      sha256CertFingerprints: ["AA:BB:CC"],
+      disabled: false,
+    });
+
+    const statements = getNexaiAssetLinksStatements();
+    const packages = statements.map((item) => item.target.package_name);
+
+    expect(packages).toEqual(
+      expect.arrayContaining(["com.synapse.preview", "com.chloemlla.synapse.mobile", "com.synapse.mobile", "com.chloemlla.nexai"]),
+    );
+  });
+
+  it("disables only the runtime-configured Synapse Android package", () => {
+    Object.assign(config.synapseAndroid, {
+      packageName: "com.synapse.mobile",
+      disabled: true,
+    });
+
+    const packages = getNexaiAssetLinksStatements().map((item) => item.target.package_name);
+
+    expect(packages).not.toContain("com.synapse.mobile");
+    expect(packages).toContain("com.chloemlla.synapse.mobile");
+    expect(packages).toContain("com.chloemlla.nexai");
+  });
+it("serves /.well-known/assetlinks.json as JSON instead of HTML", async () => {
     process.env.NEXAI_ANDROID_PACKAGE_NAME = "xyz.nexai.app";
     process.env.NEXAI_ANDROID_SHA256_CERT_FINGERPRINTS = "AA:BB:CC";
 
     const response = await request(app).get("/.well-known/assetlinks.json").expect(200);
 
     expect(response.headers["content-type"]).toMatch(/application\/json/);
-    expect(response.body).toEqual([
-      {
-        relation: ["delegate_permission/common.get_login_creds", "delegate_permission/common.handle_all_urls"],
-        target: {
-          namespace: "android_app",
-          package_name: "xyz.nexai.app",
-          sha256_cert_fingerprints: ["AA:BB:CC"],
-        },
-      },
-    ]);
+    expect(Array.isArray(response.body)).toBe(true);
+    const packages = response.body.map((item: { target: { package_name: string } }) => item.target.package_name);
+    expect(packages).toEqual(
+      expect.arrayContaining(["xyz.nexai.app", "com.chloemlla.synapse.mobile", "com.synapse.mobile", "com.chloemlla.nexai"]),
+    );
+  });
+
+  it("can disable assetlinks statements via ANDROID_ASSETLINKS_DISABLED", () => {
+    process.env.ANDROID_ASSETLINKS_DISABLED = "true";
+    expect(getNexaiAssetLinksStatements()).toEqual([]);
   });
 
   it("returns server-authoritative passkey signal options", async () => {
@@ -249,4 +360,60 @@ describe("NexAI WebAuthn backend fixes", () => {
 
     expect(expiredChallengeResponse.body.code).toBeUndefined();
   });
+
+  it("issues discoverable passkey login options without an identifier", async () => {
+    const response = await request(app).post("/api/nexai/auth/passkey/login/discoverable/options").send({}).expect(200);
+
+    expect(response.body.success).toBe(true);
+    expect(response.body.data).toMatchObject({
+      rpId: "tts.chloemlla.com",
+      userVerification: "preferred",
+    });
+    expect(typeof response.body.data.challenge).toBe("string");
+    expect(response.body.data.challenge.length).toBeGreaterThan(0);
+    expect(response.body.data.allowCredentials).toEqual([]);
+  });
+
+  it("rejects discoverable verify for unknown credentials with unknown_credential", async () => {
+    const optionsResponse = await request(app)
+      .post("/api/nexai/auth/passkey/login/discoverable/options")
+      .send({})
+      .expect(200);
+
+    const challenge = optionsResponse.body.data.challenge as string;
+    const verifyResponse = await request(app)
+      .post("/api/nexai/auth/passkey/login/discoverable/verify")
+      .send({
+        challenge,
+        response: { id: "missing-discoverable-credential" },
+      })
+      .expect(400);
+
+    expect(verifyResponse.body).toMatchObject({
+      success: false,
+      code: NEXAI_PASSKEY_UNKNOWN_CREDENTIAL_CODE,
+    });
+  });
+
+  it("rejects discoverable verify when challenge is missing or expired", async () => {
+    const missingChallenge = await request(app)
+      .post("/api/nexai/auth/passkey/login/discoverable/verify")
+      .send({
+        response: { id: "any-credential" },
+      })
+      .expect(400);
+    expect(missingChallenge.body.success).toBe(false);
+    expect(missingChallenge.body.code).toBeUndefined();
+
+    const expiredChallenge = await request(app)
+      .post("/api/nexai/auth/passkey/login/discoverable/verify")
+      .send({
+        challenge: "never-issued-challenge",
+        response: { id: "any-credential" },
+      })
+      .expect(400);
+    expect(expiredChallenge.body.success).toBe(false);
+    expect(expiredChallenge.body.code).toBeUndefined();
+  });
+
 });

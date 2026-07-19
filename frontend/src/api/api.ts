@@ -7,6 +7,9 @@ import {
     isExemptPath,
 } from '../utils/ipVerification';
 import { canonicalizeBackendApiUrl } from '../utils/apiPath';
+import { getAuthToken as readAuthToken, clearAuthToken } from '../utils/authSession';
+import { maybeEmitPenaltyAppealFromError } from '../utils/penaltyAppeal';
+
 
 // 获取API基础URL：生产环境默认同源，开发环境保留后端直连能力
 const getApiBaseUrl = () => {
@@ -78,7 +81,7 @@ api.interceptors.request.use(async (config) => {
             ? config.headers
             : new AxiosHeaders(config.headers);
     config.headers = headers;
-    const token = localStorage.getItem('token');
+    const token = readAuthToken();
     if (token) {
         headers.set('Authorization', `Bearer ${token}`);
     }
@@ -150,6 +153,10 @@ api.interceptors.response.use(
         } catch { }
 
         // 处理 401 错误（未授权）
+        if (error.response?.status === 403) {
+            maybeEmitPenaltyAppealFromError(error, 'api-interceptor');
+        }
+
         if (error.response?.status === 403 && error.response?.data?.errorCode === 'IP_VERIFICATION_REQUIRED') {
             const pathname = resolveRequestPathname(originalRequest);
             if (pathname && isExemptPath(pathname)) {
@@ -162,7 +169,7 @@ api.interceptors.response.use(
 
         if (error.response?.status === 401) {
             // 不再自动重定向到 /welcome，由组件自行处理未授权状态
-            localStorage.removeItem('token');
+            clearAuthToken();
             return Promise.reject(error);
         }
 
@@ -258,7 +265,7 @@ export const apiWithRetry = {
 
 // 获取认证token
 export const getAuthToken = (): string | null => {
-    return localStorage.getItem('token');
+    return readAuthToken();
 };
 
 export { canonicalizeBackendApiUrl, getApiBaseUrl };

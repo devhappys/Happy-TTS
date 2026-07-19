@@ -11,9 +11,15 @@ import {
   type GoogleAuthRuntimeConfig,
   type IpqsRuntimeConfig,
   type LinuxDoRuntimeConfig,
+  type LinuxDoCreditRuntimeConfig,
   type NexaiRuntimeConfig,
   type TtsRuntimeConfig,
 } from "./runtimeConfigDefaults";
+import {
+  isGenerationCodeConfigured,
+  normalizeGenerationCode,
+  validateGenerationCodeStrength,
+} from "../utils/generationCodePolicy";
 
 dotenv.config();
 
@@ -61,6 +67,16 @@ const envSchema = z
     BASE_URL: z.string().url().optional(),
     VITE_API_URL: z.string().url().optional(),
     FRONTEND_URL: z.string().url().optional(),
+    // Google Identity Services (Web application client IDs)
+    GOOGLE_CLIENT_ID: optionalTrimmedString,
+    NEXAI_GOOGLE_CLIENT_ID: optionalTrimmedString,
+    SYNAPSE_ANDROID_PACKAGE_NAME: optionalTrimmedString,
+    SYNAPSE_ANDROID_SHA256_CERT_FINGERPRINTS: optionalTrimmedString,
+    SYNAPSE_ANDROID_GOOGLE_CLIENT_ID: optionalTrimmedString,
+    SYNAPSE_ANDROID_DISABLED: stringToBoolean,
+    NEXAI_GITHUB_CLIENT_ID: optionalTrimmedString,
+    NEXAI_GITHUB_CLIENT_SECRET: optionalTrimmedString,
+    NEXAI_FRONTEND_URL: z.string().url().optional(),
     OPENAI_API_KEY: optionalTrimmedString,
     OPENAI_KEY: optionalTrimmedString,
     OPENAI_BASE_URL: z.string().url().optional(),
@@ -71,7 +87,9 @@ const envSchema = z
     ADMIN_USERNAME: z.string().optional().default("admin"),
     ADMIN_PASSWORD: optionalTrimmedString,
     ADMIN_OPERATION_PASSWORD: optionalTrimmedString,
-    GENERATION_CODE: z.string().optional().default("admin"),
+    // Empty = shared/anonymous generation-code gate not configured.
+    // Never default to a predictable value such as "admin".
+    GENERATION_CODE: optionalTrimmedString,
     JWT_SECRET: optionalTrimmedString,
     SIGN_SECRET_KEY: optionalTrimmedString,
     JWT_EXPIRES_IN: z
@@ -119,6 +137,17 @@ const envSchema = z
       .enum(["auto", "jpg", "jpeg", "png", "webp", "gif", "webp_animated"])
       .optional(),
     INTERNAL_SERVICE_TOKEN: optionalTrimmedString,
+    // LINUX DO Credit (积分支付)
+    LINUXDO_CREDIT_ENABLED: stringToBoolean,
+    LINUXDO_CREDIT_PID: optionalTrimmedString,
+    LINUXDO_CREDIT_KEY: optionalTrimmedString,
+    LINUXDO_CREDIT_PROTOCOL: z.enum(["epay", "ldc"]).optional(),
+    LINUXDO_CREDIT_GATEWAY_BASE: z.string().url().optional(),
+    LINUXDO_CREDIT_PRIVATE_KEY: optionalTrimmedString,
+    LINUXDO_CREDIT_RATE: z.coerce.number().positive().max(1_000_000).optional(),
+    LINUXDO_CREDIT_MAX_MONEY: z.coerce.number().positive().max(1_000_000).optional(),
+    LINUXDO_CREDIT_NOTIFY_URL: z.string().url().optional(),
+    LINUXDO_CREDIT_RETURN_URL: z.string().url().optional(),
     RUST_IPC_ENABLED: stringToBoolean,
     RUST_IPC_DIR: optionalTrimmedString,
     RUST_IPC_CHANNEL_BYTES: z.coerce
@@ -195,6 +224,18 @@ const envSchema = z
     RUST_SECURITY_WORKER_FALLBACK_ENABLED: stringToBoolean,
   })
   .superRefine((env, ctx) => {
+    const generationCode = normalizeGenerationCode(env.GENERATION_CODE);
+    if (generationCode) {
+      const strength = validateGenerationCodeStrength(generationCode);
+      if (!strength.ok) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["GENERATION_CODE"],
+          message: strength.reason,
+        });
+      }
+    }
+
     if (env.NODE_ENV === "production") {
       if (!env.JWT_SECRET) {
         ctx.addIssue({
@@ -224,6 +265,9 @@ const envSchema = z
           message: "Production requires PUBLIC_SHORT_URL_PASSWORD when PUBLIC_SHORT_URL_ENABLED=true",
         });
       }
+      // Production: when a generation code is supplied (enables shared/anonymous TTS gate),
+      // it must already have passed the high-entropy check above. Empty remains allowed
+      // (shared-code path stays closed until an admin configures a strong code at runtime).
     }
     if (!env.MONGO_URI && !env.MONGODB_URI) {
       ctx.addIssue({
@@ -281,6 +325,7 @@ const baseUrl = parsedEnv.VITE_API_URL || parsedEnv.BASE_URL || "https://tts.chl
 const frontendBaseUrl = parsedEnv.FRONTEND_URL || "https://tts.chloemlla.com";
 const openaiApiKey = parsedEnv.OPENAI_KEY || parsedEnv.OPENAI_API_KEY;
 const jwtSecret = parsedEnv.JWT_SECRET || generateEphemeralSecret();
+const signSecretKey = parsedEnv.SIGN_SECRET_KEY || "";
 const adminPassword = parsedEnv.NODE_ENV === "production" ? parsedEnv.ADMIN_PASSWORD! : parsedEnv.ADMIN_PASSWORD || "admin";
 const adminOperationPassword = parsedEnv.ADMIN_OPERATION_PASSWORD || adminPassword;
 const publicShortUrlEnabled = parsedEnv.PUBLIC_SHORT_URL_ENABLED === true;
@@ -311,7 +356,7 @@ export const compileTimeConfig = Object.freeze({
   audioDir: path.join(process.cwd(), "finish"),
   dataDir: path.join(process.cwd(), "data"),
   logsDir: path.join(process.cwd(), "logs"),
-  runtimeMutableKeys: ["IPQS", "LINUXDO", "GOOGLE_AUTH", "DEEPLX", "NEXAI", "TTS", "EMAIL", "ADMIN_SECURITY"] as const,
+  runtimeMutableKeys: ["IPQS", "LINUXDO", "GOOGLE_AUTH", "DEEPLX", "NEXAI", "TTS", "EMAIL", "ADMIN_SECURITY", "SYNAPSE_ANDROID"] as const,
 });
 
 const runtimeDefaults = buildRuntimeConfigDefaults({
@@ -322,9 +367,38 @@ const runtimeDefaults = buildRuntimeConfigDefaults({
   serverStatusPassword: parsedEnv.SERVER_PASSWORD,
   publicShortUrlEnabled,
   publicShortUrlPassword,
-  generationCode: parsedEnv.GENERATION_CODE,
+  generationCode: normalizeGenerationCode(parsedEnv.GENERATION_CODE),
   email: emailRuntimeDefaults,
+  googleClientId: parsedEnv.GOOGLE_CLIENT_ID,
+  nexaiGoogleClientId: parsedEnv.NEXAI_GOOGLE_CLIENT_ID || parsedEnv.GOOGLE_CLIENT_ID,
+  synapseAndroidPackageName: parsedEnv.SYNAPSE_ANDROID_PACKAGE_NAME,
+  synapseAndroidSha256CertFingerprints: parseCsv(
+    parsedEnv.SYNAPSE_ANDROID_SHA256_CERT_FINGERPRINTS,
+    [],
+  ),
+  synapseAndroidGoogleClientId: parsedEnv.SYNAPSE_ANDROID_GOOGLE_CLIENT_ID,
+  synapseAndroidDisabled: parsedEnv.SYNAPSE_ANDROID_DISABLED,
 });
+
+// LINUX DO Credit merchant credentials come from env (not Mongo runtime mutable keys).
+runtimeDefaults.linuxdoCredit = {
+  ...runtimeDefaults.linuxdoCredit,
+  enabled: parsedEnv.LINUXDO_CREDIT_ENABLED === true,
+  pid: parsedEnv.LINUXDO_CREDIT_PID || "",
+  key: parsedEnv.LINUXDO_CREDIT_KEY || "",
+  protocol: parsedEnv.LINUXDO_CREDIT_PROTOCOL || "epay",
+  gatewayBase: (parsedEnv.LINUXDO_CREDIT_GATEWAY_BASE || runtimeDefaults.linuxdoCredit.gatewayBase).replace(
+    /\/+$/,
+    "",
+  ),
+  privateKey: (parsedEnv.LINUXDO_CREDIT_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+  creditRate: parsedEnv.LINUXDO_CREDIT_RATE || runtimeDefaults.linuxdoCredit.creditRate,
+  maxMoney: parsedEnv.LINUXDO_CREDIT_MAX_MONEY || runtimeDefaults.linuxdoCredit.maxMoney,
+  notifyUrl: parsedEnv.LINUXDO_CREDIT_NOTIFY_URL || runtimeDefaults.linuxdoCredit.notifyUrl,
+  returnUrl: parsedEnv.LINUXDO_CREDIT_RETURN_URL || runtimeDefaults.linuxdoCredit.returnUrl,
+};
+
+const linuxDoCreditConfig: LinuxDoCreditRuntimeConfig = { ...runtimeDefaults.linuxdoCredit };
 
 RuntimeConfigService.configureDefaults(runtimeDefaults);
 
@@ -336,6 +410,7 @@ export const startupConfig = Object.freeze({
   adminUsername: parsedEnv.ADMIN_USERNAME,
   adminPassword,
   jwtSecret,
+  signSecretKey,
   jwtExpiresIn: parsedEnv.JWT_EXPIRES_IN,
   bcryptSaltRounds: 12,
   localIps: ["127.0.0.1", "localhost", "::1"],
@@ -465,6 +540,9 @@ export const runtimeMutableConfig = {
   get googleAuth(): GoogleAuthRuntimeConfig {
     return RuntimeConfigService.getCachedConfig().googleAuth;
   },
+  get synapseAndroid() {
+    return RuntimeConfigService.getCachedConfig().synapseAndroid;
+  },
   get deeplx(): DeepLXRuntimeConfig {
     return RuntimeConfigService.getCachedConfig().deeplx;
   },
@@ -496,6 +574,7 @@ export const config = {
   localIps: startupConfig.localIps,
   baseUrl: startupConfig.baseUrl,
   jwtSecret: startupConfig.jwtSecret,
+  signSecretKey: startupConfig.signSecretKey,
   jwtExpiresIn: startupConfig.jwtExpiresIn,
   bcryptSaltRounds: startupConfig.bcryptSaltRounds,
   loginRateLimit: {
@@ -532,8 +611,15 @@ export const config = {
   get linuxdo() {
     return runtimeMutableConfig.linuxdo;
   },
+  /** LINUX DO Credit merchant config (env-backed). */
+  get linuxdoCredit(): LinuxDoCreditRuntimeConfig {
+    return linuxDoCreditConfig;
+  },
   get googleAuth() {
     return runtimeMutableConfig.googleAuth;
+  },
+  get synapseAndroid() {
+    return runtimeMutableConfig.synapseAndroid;
   },
   get deeplx() {
     return runtimeMutableConfig.deeplx;
@@ -546,6 +632,9 @@ export const config = {
   },
   get generationCode() {
     return runtimeMutableConfig.tts.generationCode;
+  },
+  get generationCodeConfigured() {
+    return isGenerationCodeConfigured(runtimeMutableConfig.tts.generationCode);
   },
 };
 

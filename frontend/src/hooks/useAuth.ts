@@ -3,16 +3,40 @@ import axios from 'axios';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { User } from '../types/auth';
 import { getApiBaseUrl } from '../api/api';
+import {
+    clearAuthToken,
+    clearSavedAccounts,
+    getAuthToken,
+    readSavedAccounts,
+    setAuthToken,
+    writeSavedAccounts,
+    ACCOUNTS_KEY as ACCOUNTS_KEY_CONST,
+} from '../utils/authSession';
+import { maybeEmitPenaltyAppealFromError } from '../utils/penaltyAppeal';
 
 // 单设备多用户配置
-const ACCOUNTS_KEY = 'synapse_saved_accounts';
+const ACCOUNTS_KEY = ACCOUNTS_KEY_CONST;
 const AUTH_TOKEN_EXPIRY_SKEW_MS = 30_000;
 
 export interface SavedAccount {
     user: User;
-    token: string;
+    /** Optional: only for explicit non-cookie multi-account injection. */
+    token?: string;
     lastActive: number;
 }
+
+const toStoredAccounts = (accounts: SavedAccount[]) => (
+    accounts.map((account) => ({
+        user: account.user as unknown as {
+            id: string;
+            username?: string;
+            email?: string;
+            role?: string;
+        } & Record<string, unknown>,
+        token: account.token,
+        lastActive: account.lastActive,
+    }))
+);
 
 interface LoginResponse {
     user: User;
@@ -71,7 +95,7 @@ const api = axios.create({
 });
 
 api.interceptors.request.use(config => {
-    const token = localStorage.getItem('token');
+    const token = getAuthToken();
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
@@ -116,43 +140,42 @@ export const useAuth = () => {
 
     // 加载保存的账号列表
     const loadSavedAccounts = useCallback(() => {
-        const stored = localStorage.getItem(ACCOUNTS_KEY);
-        if (stored) {
-            try {
-                const parsed = JSON.parse(stored) as SavedAccount[];
-                if (!Array.isArray(parsed)) return [];
-                const validAccounts = parsed.filter(account => account?.token && !isTokenExpired(account.token));
-                if (validAccounts.length !== parsed.length) {
-                    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(validAccounts));
-                }
-                const sorted = validAccounts.sort((a, b) => b.lastActive - a.lastActive);
-                setSavedAccounts(sorted);
-                return sorted;
-            } catch (e) {
-                return [];
+        try {
+            const parsed = readSavedAccounts().map((account) => ({
+                user: account.user as unknown as User,
+                token: account.token,
+                lastActive: account.lastActive,
+            })) as SavedAccount[];
+            if (!Array.isArray(parsed)) return [];
+            const validAccounts = parsed.filter(account => account?.user?.id && (!account.token || !isTokenExpired(account.token)));
+            if (validAccounts.length !== parsed.length) {
+                writeSavedAccounts(toStoredAccounts(validAccounts));
             }
+            const sorted = validAccounts.sort((a, b) => b.lastActive - a.lastActive);
+            setSavedAccounts(sorted);
+            return sorted;
+        } catch (e) {
+            return [];
         }
-        return [];
     }, []);
 
     // 保存账号到列表
     const saveAccount = useCallback((user: User, token: string) => {
-        if (isTokenExpired(token)) return;
+        if (token && isTokenExpired(token)) return;
         const current = loadSavedAccounts();
         const filtered = current.filter(a => a.user.id !== user.id);
-        const updated = [{ user, token, lastActive: Date.now() }, ...filtered];
-        localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(updated));
+        const updated = [{ user, token: token || undefined, lastActive: Date.now() }, ...filtered] as SavedAccount[];
+        writeSavedAccounts(toStoredAccounts(updated));
         setSavedAccounts(updated);
     }, [loadSavedAccounts]);
 
     // 恢复原始代码的 getUserById
     const getUserById = useCallback(async (userId: string): Promise<User> => {
         try {
-            const token = localStorage.getItem('token');
-            if (!token) throw new Error('没有有效的认证token');
-            const response = await api.get<User>(`/api/auth/me`, {
+            const token = getAuthToken();
+            const response = await api.get<User>(`/api/auth/me`, token ? {
                 headers: { Authorization: `Bearer ${token}` }
-            });
+            } : undefined);
             return response.data;
         } catch (error: any) {
             throw new Error('获取用户信息失败');
@@ -171,34 +194,28 @@ export const useAuth = () => {
         setIsChecking(true);
 
         try {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                console.log('没有找到登录凭证，设置用户为null');
-                setUser(null);
-                setLoading(false);
-                return;
-            }
-            if (isTokenExpired(token)) {
-                console.log('本地登录凭证已过期，清除登录状态');
-                localStorage.removeItem('token');
-                setUser(null);
-                setLoading(false);
-                return;
+            const token = getAuthToken();
+            if (token && isTokenExpired(token)) {
+                console.log('本地登录凭证已过期，清除本地访问令牌，尝试 cookie 会话');
+                clearAuthToken();
             }
 
-            const cachedAccount = loadSavedAccounts().find(account => account.token === token);
-            if (cachedAccount) {
-                setUser(current => current ?? cachedAccount.user);
+            if (token) {
+                const cachedAccount = loadSavedAccounts().find(account => account.token === token);
+                if (cachedAccount) {
+                    setUser(current => current ?? cachedAccount.user);
+                }
             }
 
-            const response = await api.get<User>('/api/auth/me', {
+            // Cookie-first: withCredentials carries HttpOnly session when bearer is absent.
+            const response = await api.get<User>('/api/auth/me', token ? {
                 headers: { Authorization: `Bearer ${token}` }
-            });
+            } : undefined);
 
             console.log('认证检查响应:', response.status);
 
             if (isAuthRejectionStatus(response.status)) {
-                localStorage.removeItem('token');
+                clearAuthToken();
                 setUser(null);
                 setLoading(false);
                 return;
@@ -207,7 +224,7 @@ export const useAuth = () => {
             const data = response.data;
             if (data) {
                 setUser(data);
-                saveAccount(data, token);
+                saveAccount(data, token || '');
                 
                 // 恢复原始重定向逻辑
                 if (data.role === 'admin' && !isAdminCheckedRef.current) {
@@ -222,7 +239,7 @@ export const useAuth = () => {
             } else {
                 console.log('认证检查返回空数据，清除用户状态');
                 setUser(null);
-                localStorage.removeItem('token');
+                clearAuthToken();
             }
             lastCheckRef.current = now;
             setLastCheckTime(now);
@@ -232,8 +249,9 @@ export const useAuth = () => {
             if (error.response?.status === 429) {
                 console.warn('认证检查被限流，将在60秒后重试');
             } else if (isAuthRejectionStatus(error.response?.status)) {
+                maybeEmitPenaltyAppealFromError(error, 'auth-check');
                 setUser(null);
-                localStorage.removeItem('token');
+                clearAuthToken();
             } else {
                 console.warn('认证检查暂时失败，保留本地登录状态:', error.message);
             }
@@ -253,13 +271,21 @@ export const useAuth = () => {
         const accounts = loadSavedAccounts();
         const target = accounts.find(a => a.user.id === userId);
         if (target) {
-            if (isTokenExpired(target.token)) {
+            if (target.token && isTokenExpired(target.token)) {
                 const updated = accounts.filter(a => a.user.id !== userId);
-                localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(updated));
+                writeSavedAccounts(toStoredAccounts(updated));
                 setSavedAccounts(updated);
                 return;
             }
-            localStorage.setItem('token', target.token);
+            if (!target.token) {
+                // Cookie-only accounts cannot silently assume another identity.
+                clearAuthToken();
+                setUser(null);
+                navigate('/welcome');
+                return;
+            }
+            // Explicit bearer injection path (non-cookie multi-account tooling).
+            setAuthToken(target.token);
             setLoading(true);
             try {
                 const response = await api.get<User>('/api/auth/me', {
@@ -272,10 +298,10 @@ export const useAuth = () => {
             } catch (e: any) {
                 if (isAuthRejectionStatus(e.response?.status)) {
                     const updated = accounts.filter(a => a.user.id !== userId);
-                    localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(updated));
+                    writeSavedAccounts(toStoredAccounts(updated));
                     setSavedAccounts(updated);
                     setUser(null);
-                    localStorage.removeItem('token');
+                    clearAuthToken();
                     navigate('/welcome');
                 } else {
                     setUser(target.user);
@@ -303,16 +329,16 @@ export const useAuth = () => {
                 return { requires2FA: true, user, token, twoFactorType };
             }
 
-            if (!token) throw new Error('登录响应缺少认证令牌');
-
-            localStorage.setItem('token', token);
-            saveAccount(user, token);
+            // Browser session is HttpOnly-cookie only. Do not persist access tokens in JS storage.
+            clearAuthToken();
+            saveAccount(user, '');
             setUser(user);
             lastCheckRef.current = Date.now();
             setLastCheckTime(Date.now());
             return { requires2FA: false, user, token };
         } catch (error: any) {
             console.error('[login error]', error);
+            maybeEmitPenaltyAppealFromError(error, 'login');
             const errorData = error.response?.data || {};
             const msg = errorData.error || error.message || '登录失败，请检查网络或稍后重试';
             const authError = new Error(msg) as AuthRequestError;
@@ -327,7 +353,7 @@ export const useAuth = () => {
     };
 
     const loginWithToken = async (token: string, user: User) => {
-        if (token) localStorage.setItem('token', token);
+        if (token) setAuthToken(token);
         saveAccount(user, token);
         setUser(user);
         lastCheckRef.current = Date.now();
@@ -348,12 +374,11 @@ export const useAuth = () => {
                 pendingToken
             });
 
-            if (response.data.verified && response.data.token) {
-                const newToken = response.data.token;
-                localStorage.setItem('token', newToken);
+            if (response.data.verified) {
+                clearAuthToken();
                 const userData = await getUserById(userId);
                 setUser(userData);
-                saveAccount(userData, newToken);
+                saveAccount(userData, '');
                 setPendingTOTP(null);
                 setPending2FA(null);
                 lastCheckRef.current = Date.now();
@@ -386,9 +411,9 @@ export const useAuth = () => {
             const response = await api.post<{ user: User; token: string }>('/api/auth/register', {
                 username, email, password
             });
-            const { user, token } = response.data;
-            localStorage.setItem('token', token);
-            saveAccount(user, token);
+            const { user } = response.data;
+            clearAuthToken();
+            saveAccount(user, '');
             setUser(user);
             lastCheckRef.current = Date.now();
             setLastCheckTime(Date.now());
@@ -399,14 +424,19 @@ export const useAuth = () => {
     };
 
     const logout = async () => {
+        try {
+            await api.post('/api/auth/logout');
+        } catch {
+            // ignore network failures; still clear local state
+        }
         const accounts = loadSavedAccounts();
         if (user) {
             const updated = accounts.filter(a => a.user.id !== user.id);
-            localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(updated));
+            writeSavedAccounts(toStoredAccounts(updated));
             setSavedAccounts(updated);
         }
 
-        localStorage.removeItem('token');
+        clearAuthToken();
         setUser(null);
         setPendingTOTP(null);
         setPending2FA(null);
@@ -421,8 +451,9 @@ export const useAuth = () => {
     };
 
     const logoutAll = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem(ACCOUNTS_KEY);
+        void api.post('/api/auth/logout').catch(() => undefined);
+        clearAuthToken();
+        clearSavedAccounts();
         setUser(null);
         setSavedAccounts([]);
         setIsAdminChecked(false);
@@ -432,11 +463,11 @@ export const useAuth = () => {
     const removeAccountFromList = (userId: string) => {
         const accounts = loadSavedAccounts();
         const updated = accounts.filter(a => a.user.id !== userId);
-        localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(updated));
+        writeSavedAccounts(toStoredAccounts(updated));
         setSavedAccounts(updated);
         
         if (user?.id === userId) {
-            localStorage.removeItem('token');
+            clearAuthToken();
             setUser(null);
             if (updated.length > 0) {
                 switchAccount(updated[0].user.id);
@@ -447,13 +478,11 @@ export const useAuth = () => {
     };
 
     const updateUserAvatar = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
         try {
             const response = await api.get<User>('/api/auth/me');
             if (response.data) {
                 setUser(response.data);
-                saveAccount(response.data, token);
+                saveAccount(response.data, getAuthToken() || '');
             }
         } catch (e) {}
     };

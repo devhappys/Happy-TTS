@@ -32,6 +32,7 @@ import {
 } from "../templates/emailTemplates";
 import { getClientIP } from "../utils/ipUtils";
 import { signLoginToken } from "../utils/authToken";
+import { clearAuthSessionCookie, setAuthSessionCookie } from "../utils/authCookie";
 import logger from "../utils/logger";
 import { type User, UserStorage } from "../utils/userStorage";
 
@@ -108,8 +109,12 @@ async function verifyRequiredTurnstile(token: unknown, ip: string, logTag: strin
 }
 
 export class AuthController {
-  public static getGoogleAuthConfig(_req: Request, res: Response) {
-    res.json(getGoogleAuthConfigSummary());
+  public static getGoogleAuthConfig(req: Request, res: Response) {
+    const target =
+      req.query.client === "synapse-android" || req.query.platform === "android"
+        ? "synapse-android"
+        : "web";
+    res.json(getGoogleAuthConfigSummary(target));
   }
 
   public static async googleAuth(req: Request, res: Response) {
@@ -644,7 +649,7 @@ export class AuthController {
         });
       }
       if ((user as any).accountStatus === "suspended") {
-        return res.status(403).json({ error: "账户已被封停" });
+        return res.status(403).json({ error: "账户已被封停", code: "ACCOUNT_SUSPENDED", supportEmail: "support@chloemlla.com" });
       }
 
       // 登录成功，重置尝试次数
@@ -722,9 +727,11 @@ export class AuthController {
       // 不再写入user.token，仅返回JWT
       const { id, username, email, role, isTranslationEnabled, translationAccessUntil, accountStatus } = user as any;
       const t1 = Date.now();
+      setAuthSessionCookie(req, res, token);
       res.json({
         user: { id, username, email, role, isTranslationEnabled, translationAccessUntil, accountStatus },
         token,
+        authMode: "cookie+bearer",
       });
       logger.info("[login] 已返回登录响应", { 总耗时: `${t1 - t0}ms`, t0, t1 });
       return;
@@ -775,7 +782,7 @@ export class AuthController {
         return res.status(404).json({ error: "用户不存在" });
       }
       if ((user as any).accountStatus === "suspended") {
-        return res.status(403).json({ error: "账户已被封停" });
+        return res.status(403).json({ error: "账户已被封停", code: "ACCOUNT_SUSPENDED", supportEmail: "support@chloemlla.com" });
       }
       const remainingUsage = await UserStorage.getRemainingUsage(userId);
       // 不返回avatarBase64
@@ -818,7 +825,7 @@ export class AuthController {
         return res.status(404).json({ error: "用户不存在" });
       }
       if ((user as any).accountStatus === "suspended") {
-        return res.status(403).json({ error: "账户已被封停" });
+        return res.status(403).json({ error: "账户已被封停", code: "ACCOUNT_SUSPENDED", supportEmail: "support@chloemlla.com" });
       }
 
       // 验证用户是否启用了Passkey
@@ -917,9 +924,11 @@ export class AuthController {
           passwordKeyVersion: _passwordKeyVersion,
           ...userWithoutPassword
         } = user as any;
+        setAuthSessionCookie(req, res, token);
         return res.json({
           success: true,
           token,
+          authMode: "cookie+bearer",
           user: {
             id: user.id,
             username: user.username,
@@ -1361,15 +1370,17 @@ export async function isAdminToken(token: string | undefined): Promise<boolean> 
 
 export async function logoutHandler(req: Request, res: Response) {
   try {
+    clearAuthSessionCookie(req, res);
     const token = req.headers.authorization?.replace("Bearer ", "");
-    if (!token) return res.json({ success: true });
-    const users = await UserStorage.getAllUsers();
-    const idx = users.findIndex((u: any) => u.token === token);
-    if (idx !== -1) {
-      await UserStorage.updateUser(users[idx].id, {
-        token: undefined,
-        tokenExpiresAt: undefined,
-      });
+    if (token) {
+      const users = await UserStorage.getAllUsers();
+      const idx = users.findIndex((u: any) => u.token === token);
+      if (idx !== -1) {
+        await UserStorage.updateUser(users[idx].id, {
+          token: undefined,
+          tokenExpiresAt: undefined,
+        });
+      }
     }
     res.json({ success: true });
   } catch (_error) {

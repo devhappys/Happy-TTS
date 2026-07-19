@@ -25,6 +25,20 @@ export interface LinuxDoRuntimeConfig {
   frontendCallbackUrl: string;
 }
 
+/** LINUX DO Credit (积分支付) merchant settings — separate from Connect OAuth. */
+export interface LinuxDoCreditRuntimeConfig {
+  enabled: boolean;
+  pid: string;
+  key: string;
+  protocol: "epay" | "ldc";
+  gatewayBase: string;
+  privateKey: string;
+  creditRate: number;
+  maxMoney: number;
+  notifyUrl: string;
+  returnUrl: string;
+}
+
 export interface GoogleAuthRuntimeConfig {
   clientId: string;
 }
@@ -71,15 +85,31 @@ export interface AdminSecurityRuntimeConfig {
   publicShortUrlPassword: string;
 }
 
+export interface SynapseAndroidRuntimeConfig {
+  /** Android applicationId / package name for Digital Asset Links */
+  packageName: string;
+  /** Colon-separated SHA-256 cert fingerprints for release (and optional debug) */
+  sha256CertFingerprints: string[];
+  /**
+   * Optional Google Web Client ID for Android Credential Manager SIWG serverClientId.
+   * Empty means fall back to main googleAuth.clientId / GOOGLE_CLIENT_ID.
+   */
+  googleClientId: string;
+  /** When true, assetlinks.json omits Synapse Android statements from this config */
+  disabled: boolean;
+}
+
 export interface RuntimeConfigDefaults {
   ipqs: IpqsRuntimeConfig;
   linuxdo: LinuxDoRuntimeConfig;
+  linuxdoCredit: LinuxDoCreditRuntimeConfig;
   googleAuth: GoogleAuthRuntimeConfig;
   deeplx: DeepLXRuntimeConfig;
   nexai: NexaiRuntimeConfig;
   tts: TtsRuntimeConfig;
   email: EmailRuntimeConfig;
   adminSecurity: AdminSecurityRuntimeConfig;
+  synapseAndroid: SynapseAndroidRuntimeConfig;
 }
 
 export function buildRuntimeConfigDefaults(options: {
@@ -92,9 +122,19 @@ export function buildRuntimeConfigDefaults(options: {
   publicShortUrlPassword?: string;
   generationCode: string;
   email: EmailRuntimeConfig;
+  googleClientId?: string;
+  nexaiGoogleClientId?: string;
+  synapseAndroidPackageName?: string;
+  synapseAndroidSha256CertFingerprints?: string[];
+  synapseAndroidGoogleClientId?: string;
+  synapseAndroidDisabled?: boolean;
 }): RuntimeConfigDefaults {
   const normalizedBaseUrl = options.baseUrl.replace(/\/+$/, "");
   const normalizedFrontendBaseUrl = options.frontendBaseUrl.replace(/\/+$/, "");
+  const googleClientId = (options.googleClientId || "").trim();
+  const nexaiGoogleClientId = (options.nexaiGoogleClientId || options.googleClientId || "").trim();
+  const synapseAndroidSha256CertFingerprints =
+    options.synapseAndroidSha256CertFingerprints?.map((item) => item.trim()).filter(Boolean) || [];
 
   return {
     ipqs: {
@@ -122,8 +162,20 @@ export function buildRuntimeConfigDefaults(options: {
       callbackUrl: `${normalizedBaseUrl}/api/auth/linuxdo/callback`,
       frontendCallbackUrl: `${normalizedFrontendBaseUrl}/auth/linuxdo/callback`,
     },
+    linuxdoCredit: {
+      enabled: false,
+      pid: "",
+      key: "",
+      protocol: "epay",
+      gatewayBase: "https://credit.linux.do/epay",
+      privateKey: "",
+      creditRate: 1,
+      maxMoney: 10000,
+      notifyUrl: `${normalizedBaseUrl}/api/linuxdo-credit/notify`,
+      returnUrl: `${normalizedFrontendBaseUrl}/api-keys`,
+    },
     googleAuth: {
-      clientId: "",
+      clientId: googleClientId,
     },
     deeplx: {
       baseUrl: "https://api.deeplx.org",
@@ -134,7 +186,7 @@ export function buildRuntimeConfigDefaults(options: {
       jwtExpiresIn: "2h",
       refreshExpiresIn: "30d",
       google: {
-        clientId: "",
+        clientId: nexaiGoogleClientId,
       },
       github: {
         clientId: "",
@@ -154,6 +206,15 @@ export function buildRuntimeConfigDefaults(options: {
       publicShortUrlEnabled: options.publicShortUrlEnabled,
       publicShortUrlPassword: options.publicShortUrlPassword || "",
     },
+    synapseAndroid: {
+      packageName: options.synapseAndroidPackageName?.trim() || "com.chloemlla.synapse.mobile",
+      sha256CertFingerprints:
+        synapseAndroidSha256CertFingerprints.length > 0
+          ? synapseAndroidSha256CertFingerprints
+          : ["E9:D8:5A:D2:52:C3:8D:86:C6:E4:B2:A8:C0:49:B8:B5:A9:FA:79:AC:6E:BB:11:8C:94:0A:83:03:B6:96:39:98"],
+      googleClientId: options.synapseAndroidGoogleClientId?.trim() || "",
+      disabled: options.synapseAndroidDisabled === true,
+    },
   };
 }
 
@@ -166,6 +227,9 @@ export function cloneRuntimeConfigDefaults(config: RuntimeConfigDefaults): Runti
     },
     linuxdo: {
       ...config.linuxdo,
+    },
+    linuxdoCredit: {
+      ...config.linuxdoCredit,
     },
     googleAuth: {
       ...config.googleAuth,
@@ -190,6 +254,10 @@ export function cloneRuntimeConfigDefaults(config: RuntimeConfigDefaults): Runti
     },
     adminSecurity: {
       ...config.adminSecurity,
+    },
+    synapseAndroid: {
+      ...config.synapseAndroid,
+      sha256CertFingerprints: [...config.synapseAndroid.sha256CertFingerprints],
     },
   };
 }

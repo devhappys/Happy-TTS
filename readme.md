@@ -44,6 +44,7 @@
 - [开发指南](#开发指南)
 - [安全特性](#安全特性)
 - [监控与日志](#监控与日志)
+- [更新日志](#更新日志)
 - [许可证](#许可证)
 
 ---
@@ -981,6 +982,467 @@ npm install
 npx wrangler dev     # 本地开发
 npx wrangler deploy  # 部署到 Cloudflare
 ```
+
+---
+
+## 📝 更新日志
+
+按 commit 整理的 2025 年 1 月起变更记录（合并同类项，省略纯依赖 bump / merge / 任务归档类提交）。仓库在 2025-02 至 2025-05 无提交。
+
+### 2025-01
+
+#### 01-04
+- 大幅更新早期 Python 入口 `app.py`（+542 / -113）
+- 增加 Resend 邮件发送、Markdown / BeautifulSoup 解析能力
+- 新增 `/email`、`/bili-done`、`/ip` 等 Flask 接口
+- 增加 IP 归属查询、本地缓存与失败密码尝试限流
+- 优化日志编码、OpenAI TTS 界面控件与请求前拦截逻辑
+
+### 2025-02
+
+- 本月无提交记录
+
+### 2025-03
+
+- 本月无提交记录
+
+### 2025-04
+
+- 本月无提交记录
+
+### 2025-05
+
+- 本月无提交记录
+
+
+### 2025-06
+
+#### 06-15 ~ 06-17
+- 项目重构为 Node.js 全栈结构，清理无用文件
+- 搭建环境变量、代理与 CI 依赖安装流程
+- 实现 IP 限流与更稳健的 IP 识别
+- 前端接入 React Router，重构 App 与 TTS 页面
+- 登录改为 identifier，完善注册登录错误处理
+- TTS 增加重复内容检测、生成码校验、文本长度限制与混淆构建
+
+#### 06-18 ~ 06-20
+- 新增 IP 归属查询、缓存、重试与宕机容错
+- 增加服务状态接口、隐私政策 / 服务条款页
+- 后端代码混淆，前端补充 Footer 与调试快捷键限制
+- TTS 增加数据签名校验与 CSP / 篡改防护
+- 强化密码强度、CORS、输入消毒与 Token 认证
+- 新增公网 IP 获取 / 上报与上报限流白名单
+
+#### 06-21 ~ 06-26
+- 新增用户管理与管理员接口限流
+- 实现 TOTP 双因素认证与备份码
+- 增加移动端导航与 API 文档（Swagger / OpenAPI）
+- 多服务器部署、日志分享 / 查询与上传历史
+
+#### 06-28 ~ 06-29
+- 接入 Docusaurus 文档站与博客
+- 前端增加页面切换动画、粒子背景与技术栈展示
+- 增强扩展检测、水印覆盖、完整性校验与反调试能力
+
+### 2025-07
+
+#### 07-03 ~ 07-08
+- 前端测试切换 Vitest，优化 TOTP / TTS UI 与错误处理
+- 引入动态 API Base URL，并增强限流与危险关键词过滤
+- 用 Passkey 取代旧 WebAuthn 路径，完善 credentialID 修复与校验
+- 支持多 2FA 方式，修复命令注入，并补充网络 / PublicIP API
+- 增加代码分割、JWT 认证与 AudioPreview / Passkey 体验优化
+
+#### 07-09 ~ 07-15
+- 用户存储支持 MongoDB，后续补齐 MySQL 与使用量统计
+- 新增 CaseConverter、Cloudflare Turnstile（可开关）与 hCaptcha 简化实现
+- 管理端邮件发送、注册邮箱验证、多发件域名与邮件配额
+- 强化 IP 查询 SSRF 防护，新增用户主页与 TTS 内容去重存储
+
+#### 07-16 ~ 07-25
+- 新增管理后台、响应式导航与 MiniAPI 限流
+- 对外邮件 OutEmail、抽奖系统、ModList 与公告弹窗
+- 用户资料 / 头像上传，IndexedDB 头像缓存
+- IPFS 图床短链、短链跳转 / 管理与 XSS 防护
+
+#### 07-27 ~ 07-31
+- 管理后台增强命令管理、日志分享与域名豁免检查
+- 新增 Tiger Adventure 游戏
+- 强化命令 / 图片 ID 校验、安全日志与短链复制体验
+
+### 2025-08
+
+#### 08-01 ~ 08-10
+- 新增 CaseConverter / CoinFlip 等实用工具增强
+- 实现 CSRF 防护与会话安全加固
+- MongoDB 用户存储自动切换，新增资源商店
+- CDK 批量选择 / 删除 / 导出 / 导入与未使用 CDK 清理
+
+#### 08-11 ~ 08-16
+- 集成 FBI Wanted 模块与相关管理能力
+- 指纹上报 / 管理、Webhook 事件管理与 Resend 校验
+- LibreChat 兼容路由、实时聊天与数据收集管理
+- 上线 SmartHumanCheck 智能人机校验与风险评估
+
+#### 08-17 ~ 08-24
+- SmartHumanCheck 接入认证链路，增强防自动化挑战
+- 数据收集批处理、PII 检测与管理端设置面板
+- Debug Console、敏感管理接口限流与 Docker 构建优化
+- Markdown 支持 Mermaid / 数学公式，IPFS 配置管理与 SVG 消毒
+
+#### 08-25 ~ 08-31
+- Turnstile 配置管理、首次访问验证与临时指纹 / access token
+- 首次访问联动 IP 封禁，重构篡改防护中间件
+- 批量图片上传、Microsoft Clarity 分析、防伪查询页
+- 部署脚本 Node 化，GitHub Billing 配置与 DOCX 导出
+- Docker / GHCR 多架构构建与推送完善
+
+### 2025-09
+
+#### 09-05 ~ 09-10
+- 包管理逐步切换到 pnpm，并优化 Docker / CI 安装缓存
+- Turnstile 高级验证与风险评估，统一 `shc_traces` 溯源模型
+- GitHub Billing 本地缓存、公开路由与限流
+- 集成 hCaptcha 备选验证、CSP 更新与 Clarity
+- 日志归档、路径消毒、指纹增强与开发态自动放行
+
+#### 09-11 ~ 09-21
+- Billing / 管理端接入 Turnstile token 鉴权
+- GitHub Billing 高级缓存、性能指标与渐进加载
+- 通知测试页、校园应急页与多配置 curl 管理
+- PasskeySetup / FirstVisitVerification 可访问性与调试增强
+
+#### 09-24 ~ 09-29
+- 公开 Turnstile 配置 / token 校验端点
+- 用户资料按 2FA 状态优化验证流程
+- 管理端多个 Modal 组件性能与交互优化
+- 新增 IP 数据清理与统计能力
+
+### 2025-10
+
+#### 10-03 ~ 10-09
+- EnvManager 增强 Clarity Project ID 管理与 curl 校验
+- 篡改检测 / 完整性校验与品牌保护增强
+- 调度清理统计日志、首次访问懒加载
+- 策略执行 / 同意记录模块与时间戳校验放宽
+- 新增 `useToast` 通知 Hook
+
+#### 10-18 ~ 10-23
+- IPFS 开发态可跳过 Turnstile，增强 Crossbell 域名校验
+- 短链生成策略增强；数据收集 / CDK / Clarity / Life 服务补健康检查与缓存
+- 服务日志中文化
+- 新增多个 Demo 页面（财务 / 冥想 / 音乐播放器）
+
+### 2025-11
+
+#### 11-06 ~ 11-17
+- 统一 Passkey API 与 origin 管理，完善无密码登录路径
+- 新增字数统计页与年龄计算器，并统一设计语言
+- 接入 React 19 能力（metadata / use hook）并做组件性能优化
+- 指纹请求弹窗支持一次性关闭与强制上报
+- 实现基于 Redis + MongoDB 同步的 IP 封禁系统
+
+#### 11-18 ~ 11-30
+- 修复管理端弹窗、TypeScript 与数据库连通问题
+- 支持 CIDR 段封禁，并完善封禁 / 解封同步
+- 完整性检查误报显著降低，FBI Wanted 系统全面重构
+- 登录 / 注册页拆分并采用 GitHub 风格设计
+- 新增忘记密码 / 重置密码，兼容 mongoose 9，首次访问验证支持后端开关
+
+### 2025-12
+
+#### 12-03 ~ 12-07
+- 补充完整 Passkey 登录指南
+- 实现可发现凭证的无密码 Passkey 登录
+- 新增 Turnstile 全局旁路开关
+- 新增邮箱验证页与密码重置链接页
+- 认证页完成中文本地化，所有模态框增强响应式与滚动支持
+
+
+### 2026-01
+
+#### 01-06
+- 批量升级前端与后端依赖（jspdf、rollup、framer-motion、svix、react-email、lucide-react、mongoose、zod 等）
+
+### 2026-02
+
+#### 02-15
+- 新增团队工作区与协作系统
+- 修复 CodeQL 安全漏洞
+
+#### 02-16
+- 规范 Dockerfile 多阶段构建
+- 新增 WebSocket 实时通知、广播管理，并重构限流 / CORS / WAF / 健康检查
+- 新增请求防重放验证、操作审计日志、API Key 管理，并修复 Docker 构建问题
+- 对齐 CI / Dockerfile 后端构建阶段，合并 Dependabot 自动批准与合并流程
+- 继续处理 CodeQL 高危告警与 Dependabot 安全告警
+
+#### 02-18
+- 封禁 IP 加载优先使用 MongoDB
+- 扩展 WAF body 白名单，支持 `deviceSignals` 与项目字段
+- 新增 `WAF_ENABLED` 环境开关
+- 优化审计日志与 WAF 性能，支持动态注册 WAF 白名单
+- 新增一键修复 Dependabot 安全告警脚本与工作流
+- 新增 Cloudflare Workers 边缘部署（Hono）
+- 性能优化：减少请求日志开销、缓存 CIDR 查询、懒加载 JSDOM/DOMPurify、合并限流器内存存储
+- 引入 Biome 配置与 safe/unsafe 检查工作流
+- 修复 MongoDB 查询输入消毒与正则转义相关 CodeQL 告警
+
+#### 02-19
+- 补全短链迁移服务正则转义
+- 新增专有许可证与完整 README
+- 前后端支持 IPv6 双栈
+- API / 前端域名迁移至 `951100.xyz`
+
+#### 02-20
+- 修复 nginx WebSocket 代理与前端 WSS 地址推导
+- `authenticateAdmin` 改为校验 JWT 并从数据库查询角色
+- 登录 / TOTP / Passkey 签发 JWT 时写入 role
+- 管理后台落地五色设计体系，并统一欢迎页 / 登录注册页 / TTS 页视觉
+- 新增通用 Webhook 通知端点与模板渲染
+- 管理端弹窗统一 Portal 到 `document.body`
+- 新增公开短链创建页（`SERVER_PASSWORD` 鉴权）
+- 增强 WsConnector / ApiKeyManager / AuditLogViewer / SystemManager 移动端适配
+
+#### 02-21
+- 统一 FBIWanted / GitHubBillingCache UI 主题
+- 管理员跳过 Turnstile，并修正 captcha token 字段名
+- 广播 / WebSocket 通知支持自定义展示时长、toast/modal 与 text/html/markdown 格式
+
+#### 02-23
+- Docker inspect 子命令支持导出容器信息并生成 `docker run`
+- 支持本地文件输入 inspect，并懒加载重依赖
+
+### 2026-03
+
+#### 03-02
+- 新增 NexAI 独立认证体系（Google / GitHub OAuth，`/api/nexai`）
+- 修复 NexAI 认证相关 CodeQL 告警
+- 新增 AMD64 / ARM64 Docker 镜像构建工作流
+
+#### 03-08
+- 实现 NexAI 云同步（controller / model / service / routes）
+- 完善 NexAI 本地 / OAuth / WebAuthn 认证与前端接入
+- 用户生成记录支持 MySQL 存储与去重
+- 引入 Turnstile / hCaptcha、用户管理、日志路由与 GitHub Billing 相关服务
+- 新增 Dependabot 安全告警自动修复脚本
+
+#### 03-13
+- 实现 NexAI 安全能力：设备追踪、异常检测、事件上报与安全看板
+
+#### 03-14
+- 新增 Artifacts 分享功能与 NexAI Security Dashboard
+- Artifact 支持密码保护、内容渲染与多内容类型（json / svg / latex / csv / xml / text）
+
+#### 03-15
+- 加强命令路由权限，并修复前端响应 / 渲染风险
+
+#### 03-23 ~ 03-24
+- 新增管理端用户管理界面与 API
+- 补齐登录 / 注册 / 重置密码等核心认证页
+- 登录支持 2FA（Passkey / TOTP）与 Turnstile
+- 新增 hCaptcha 组件、通知系统、实时聊天与独立 Markdown 渲染组件
+- 新增忘记密码页与完整邮件认证 / 通知模板
+- 补齐 NexAI 安全控制器端点
+
+#### 03-27 ~ 03-28
+- 新增指纹上报（去重 + WebSocket 通知）
+- 密码重置补充设备信息采集与通知邮件
+- 管理员修改用户信息发送通知邮件
+- 支持异地登录检测与告警邮件
+- 初始化 Docusaurus API 文档与前端 / Worker 基础设施
+
+#### 03-29
+- 新增工单系统（创建 / 查看 / 回复 / 员工管理）
+- 工单支持 AI 回复、流式响应、违规处罚与 WebSocket 实时更新
+- WelcomePage / MobileNav 支持多账号切换与登录状态通知
+- 强化 Passkey 校验、账户安全通知与用户变更邮件模板
+
+### 2026-04
+
+#### 04-04
+- Markdown 预览与工单系统统一改用 MarkdownRenderer，并支持复制代码
+- 新增 Linux.do OAuth 登录 / 注册（含 discovery 与 PKCE）
+- 恢复首次访问验证，并新增 IP 验证挑战流程
+- 支持运行时配置 Google Auth 与 OAuth JSON 导入
+- 新增 DeepLX 翻译工作区、翻译审计与处罚策略
+- 优化 App Shell UX、加载态与移动端 DeepLX 布局
+
+#### 04-05 ~ 04-07
+- 用户资料更新改为三步验证流程
+- 优化资料页邮箱 / 密码与 TTS 交互体验
+- 修复 TTS 响应元数据与工单前端构建
+- 延迟加载 jsdom，扩展 tsc 工作流覆盖面
+
+#### 04-10 ~ 04-11
+- 修复前端 Dependabot 告警与 SVG / cheerio 类型问题
+- 加固 NexAI 同步用户 ID 访问
+
+#### 04-27 ~ 04-30
+- 增强 Dependabot 告警修复脚本（repair mode / override / target 过滤）
+- 修复前端运行时与静态资源错误
+- 后端路由注册、安全流水线、限流配置与用户存储分层集中化
+- TTS 流水线任务化并强化持久化
+- 新增后端 profiling 能力
+- 统一 CSP 归属，重构邮件传输并扩展管理端邮件控制台
+- 重写 Mod List 编辑器，统一生产环境 API / 静态资源路径策略
+
+### 2026-05
+
+#### 05-21 ~ 05-24
+- 优化 Windows 命令执行与依赖更新错误处理
+- 强化认证 / TOTP 流程
+- 更新 Dockerfile / pnpm 安装策略（ignore-scripts、frozen lockfile、统一 pnpm 11.1.1）
+- 修复 SVG 多字符消毒不完整问题，并为 status 路由补齐限流
+- 新增 `SERVE_FRONTEND` 环境开关
+
+#### 05-25 ~ 05-26
+- 修复 Tailwind v4 / Alpine 相关构建与 `@import "tailwindcss"` 顺序问题
+- 统一 App 加载态、页面切换动画、404 与 TOTP 模态无访问性
+
+#### 05-28
+- EnvManager / IPFS 增加 ImageBed 配置与服务回退
+- 拆分 `adminRoutes`、`turnstileService`、`turnstileRoutes`、env / librechat 大文件
+- 前后端禁止上传 SVG
+- 实用工具 / 核心功能 / 娱乐页 UI 统一
+- 新增邮件系统配置管理与基于令牌的密码查看二次验证
+- 增强篡改上报与管理能力，优化移动端导航
+
+#### 05-29 ~ 05-30
+- 增强 IP 解封参数校验与智能人机校验
+- 补齐旧版 API 路径重定向与路由整合问题
+- 降低后端热路径与 API 请求开销
+- 完成 NexAI 后端契约
+- 新增古诗文库 docx 生成能力
+- 更新 README
+
+### 2026-06
+
+#### 06-04 ~ 06-06
+- 用户存储脚本限制为 Mongo
+- 修复静态音频服务与资源访问 token 处理
+- 新增审计日志元数据与路由增强
+- 新增 EcoEnchants API / 管理页 / Webhook / 遥测事件
+- 增强限流 key 生成与路由限流
+- 新增 OAuth 2.0 Provider（client / code / grant / token）
+- 增强广播管理范围与管理后台访问校验
+- 优化用户管理数据加载与 EnvManager 表单体验
+
+#### 06-07
+- 完善第三方账号绑定、合并与身份管理（含 Google 绑定）
+- 新增 Rust network tools 客户端（TCP ping / port scan）
+- 新增 Rust audio-worker sidecar 与 data-tools HTTP handlers
+- 支持嵌入式 Rust 服务配置、重启退避与 Dependabot 周更
+- 首次访问验证改为可配置开关
+
+#### 06-08 ~ 06-10
+- 新增 TTS 生成历史管理
+- 支持 Rust Data Tools、mmap / shared-memory IPC 与 payload 校验
+- 增强 ZIP 检查（ZIP64 / data descriptor）
+- 优化 Webhook 事件规范化与管理 UI
+- TTS 响应补充音频元数据与体积展示
+- 强化 OAuth token secret 哈希策略与多路由限流
+
+#### 06-24 ~ 06-27
+- 新增 Markdown 文章管理（CRUD / 状态控制 / 列表筛选 / 搜索面板）
+- 优化文章页页头行为与文本选择操作
+- 增强 OAuth 管理端能力
+- 新增注册邀请码管理与校验
+- 优化登录 UX，并支持 Vercel 部署脚本
+- 管理员密码校验改为 timing-safe，并支持运行时配置变更
+
+#### 06-30
+- 新增遗留 API 选择页，并要求后端确认选择结果
+- 管理员密码查看流程支持 Passkey
+
+### 2026-07
+
+#### 07-02
+- 自动处理 Dependabot 安全告警
+- 升级 `rust-services` 中 `webpki-roots` 依赖
+
+#### 07-03
+- 新增第三方账号绑定流程
+- 优化 Provider 绑定交互体验
+- 暴露已登录态外部邮箱 API
+- 补充 Rust OutEmail API 文档
+- 改进 Markdown 渲染体验
+
+#### 07-04
+- 新增 Android 移动端登录流程
+- 降低外部资源与过期 TTS 资源错误
+- 管理后台安全页面对齐基准仪表盘 UI
+- 处理乱码相关编码问题
+- 修复 Linux.do 回调错误跳转
+- 支持邮箱服务商注册凭证能力
+
+#### 07-05
+- 对齐认证错误信息与测试断言
+- 新增完整项目审计报告
+- 修复审计中的安全与发布相关问题
+
+#### 07-07
+- 为 NexAI Passkey 增加 signal 选项
+
+#### 07-08
+- 同步前端 lockfile
+- 重构解密函数，提升 buffer 处理与类型安全
+- 在测试中 mock 工单路由限流器
+
+#### 07-11
+- 持久化工单 AI 失败诊断信息
+- 增加加密 LogShare 响应解密测试
+- 同步并修复 pnpm override / lockfile 兼容性
+- 优化失败尝试合并逻辑与诊断结构
+- 更新 README 构建与测试说明
+- 保留 LibreChat 完整重试 token
+- 将 pnpm 设置迁移到 workspace 配置并统一版本
+
+#### 07-12
+- 新增 NexAI 可发现式 Passkey 登录
+- 完整适配 Google Identity Services Web 客户端
+- 在 EnvManager 暴露并可用化 `GOOGLE_CLIENT_ID` 配置
+
+#### 07-13
+- 在 `assetlinks.json` 提供 Synapse Mobile 入口
+- 为 NexAI Passkey 托管默认 Digital Asset Links
+- 完成 Synapse Android 运行时配置
+
+#### 07-15
+- 修复 Linux.do 回调重定向循环与 429
+- 落地健康检查、运维与配置相关审计修复
+- 完成全量审计整改收尾
+- 引入 HttpOnly Cookie 会话，并继续拆分管理后台 UI
+- 浏览器会话强制 Cookie-only，并深化前端拆分
+- 继续拆分 EnvManager 配置区块
+
+#### 07-16
+- 接受 Android base64 / base64url 的 apk-key-hash origin
+- NexAI 支持反调试设备安全请求头
+- 修复管理端 `AdminUserRecord` 类型错误
+- 修复 `CommandManager` 状态拉取 try/catch 结构
+- 修复 UI 拆分后的前端 TypeScript 构建错误
+- 精确升级嵌套 `rust-services` crates
+- 补充 `UserList` 过滤类型导入，并修正账户类型断言
+- 合入 Synapse TTS 平台代码主体
+- 适配 TypeScript 6 / Node16 模块解析规则
+- 继续自动处理 Dependabot 安全告警
+- 修复 `emailService` 中 `marked` Promise 类型问题
+
+#### 07-17
+- 清理 Node 验证日志
+- 固定 TypeScript 6 以兼容 ts-jest
+- 安全维护脚本支持自动修复 CodeQL 告警
+- CI 双通道安全告警修复常开
+- 兼容 `createLimiter` API 变体，降低 CodeQL 误报
+- 处理 Dependabot Rust 告警并升级安全相关 cargo 依赖
+- 恢复 Node 验证链路，规避损坏的 coverage 插桩
+- 修复剩余 Node 验证测试失败
+- 审计并修复 NexAI 安全信任问题
+- 接受 NexAI Frida / Xposed 安全事件类型
+- 新增 NexAI sig-v2 中间件与明确错误阶段
+- 支持 refreshToken 绑定的 NexAI 请求签名
+- 修复 NexAI TypeScript 构建错误（NodeNext 动态导入扩展名、签名中间件返回类型）
 
 ---
 

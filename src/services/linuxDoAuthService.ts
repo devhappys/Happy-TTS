@@ -18,6 +18,7 @@ import {
 import { sendProviderGeneratedPasswordEmail } from "./providerCredentialEmailService";
 
 export type LinuxDoAuthIntent = "login" | "register" | "bind";
+export type LinuxDoAuthClient = "web" | "synapse-android";
 
 export interface LinuxDoConfigSummary {
   enabled: boolean;
@@ -73,6 +74,7 @@ interface LinuxDoStateRecord {
   codeVerifier: string;
   expiresAt: number;
   bindTargetUserId?: string;
+  client: LinuxDoAuthClient;
 }
 
 interface LinuxDoTicketRecord {
@@ -86,13 +88,14 @@ interface LinuxDoDiscoveryCacheRecord {
 }
 
 const STATE_TTL_MS = 10 * 60 * 1000;
-const TICKET_TTL_MS = 60 * 1000;
+// Keep tickets long enough for App Link failure + manual paste / custom-scheme handoff.
+const TICKET_TTL_MS = 3 * 60 * 1000;
 const DISCOVERY_TTL_MS = 60 * 60 * 1000;
 const PLACEHOLDER_EMAIL_DOMAIN = "linuxdo.oauth.local";
 const TRUSTED_LINUXDO_DISCOVERY_URL = "https://connect.linux.do/.well-known/openid-configuration";
 const TRUSTED_LINUXDO_OAUTH_HOSTS = new Set(["connect.linux.do"]);
-const LINUXDO_BACKEND_CALLBACK_PATH = "/api/auth/linuxdo/callback";
 const LINUXDO_FRONTEND_CALLBACK_PATH = "/auth/linuxdo/callback";
+const SYNAPSE_ANDROID_APP_DEEP_LINK = "synapse://linuxdo-callback";
 const RESERVED_USERNAMES = new Set(["admin", "administrator", "root", "system", "test"]);
 
 const oauthStateStore = new Map<string, LinuxDoStateRecord>();
@@ -267,40 +270,81 @@ function buildPlaceholderEmail(linuxdoId: string): string {
   return `linuxdo_${linuxdoId}@${PLACEHOLDER_EMAIL_DOMAIN}`;
 }
 
-function normalizeUrlPath(pathname: string): string {
-  return pathname.replace(/\/+$/, "") || "/";
-}
+/**
+ * Always return the SPA callback URL. Runtime/admin config sometimes stores the
+ * backend OAuth redirect_uri under frontendCallbackUrl; sending browsers there
+ * creates a 302 loop and burns the Linux.do callback rate limit (HTTP 429).
+ */
+export function resolveLinuxDoFrontendCallbackUrl(): string {
+  const fallbackOrigin = (() => {
+    try {
+      return new URL(config.linuxdo.callbackUrl).origin;
+    } catch {
+      try {
+        return new URL(config.baseUrl).origin;
+      } catch {
+        return "https://tts.chloemlla.com";
+      }
+    }
+  })();
 
-function isConfiguredLinuxDoBackendCallbackUrl(url: URL): boolean {
-  if (normalizeUrlPath(url.pathname) === LINUXDO_BACKEND_CALLBACK_PATH) {
-    return true;
-  }
-
-  try {
-    const backendCallbackUrl = new URL(config.linuxdo.callbackUrl);
-    return (
-      url.origin === backendCallbackUrl.origin &&
-      normalizeUrlPath(url.pathname) === normalizeUrlPath(backendCallbackUrl.pathname)
-    );
-  } catch {
-    return false;
-  }
-}
-
-function resolveLinuxDoFrontendCallbackUrl(): string {
   try {
     const frontendCallbackUrl = new URL(config.linuxdo.frontendCallbackUrl);
-    if (isConfiguredLinuxDoBackendCallbackUrl(frontendCallbackUrl)) {
-      frontendCallbackUrl.pathname = LINUXDO_FRONTEND_CALLBACK_PATH;
-      frontendCallbackUrl.search = "";
-      frontendCallbackUrl.hash = "";
-      return frontendCallbackUrl.toString();
-    }
+    // Preserve configured origin (frontend host) but always land on the SPA path.
+    // Backend OAuth redirect_uri is never a valid browser completion target.
+    frontendCallbackUrl.pathname = LINUXDO_FRONTEND_CALLBACK_PATH;
+    frontendCallbackUrl.search = "";
+    frontendCallbackUrl.hash = "";
+    return frontendCallbackUrl.toString();
   } catch {
-    return config.linuxdo.frontendCallbackUrl;
+    return `${fallbackOrigin}${LINUXDO_FRONTEND_CALLBACK_PATH}`;
   }
+}
 
-  return config.linuxdo.frontendCallbackUrl;
+export function parseLinuxDoAuthClient(value: unknown): LinuxDoAuthClient {
+  return value === "synapse-android" ? "synapse-android" : "web";
+}
+
+/**
+ * Preferred completion target for a Linux.do ticket exchange.
+ *
+ * Always land on the SPA HTTPS callback first. For Synapse Android, the SPA
+ * page then hands off to `synapse://linuxdo-callback` without consuming the
+ * one-time ticket, so return works even when HTTPS App Links verification is 0.
+ */
+export function buildLinuxDoAppDeepLink(
+  params: Record<string, string | undefined | null> = {},
+): string {
+  const deepLink = new URL(SYNAPSE_ANDROID_APP_DEEP_LINK);
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === "string" && value.trim()) {
+      deepLink.searchParams.set(key, value);
+    }
+  }
+  deepLink.searchParams.set("client", "synapse-android");
+  return deepLink.toString();
+}
+
+export function buildLinuxDoCompletionRedirect(
+  params: Record<string, string | undefined | null> = {},
+  client: LinuxDoAuthClient = "web",
+): string {
+  return buildLinuxDoFrontendRedirect({
+    ...params,
+    client: client === "synapse-android" ? "synapse-android" : params.client ?? "web",
+  });
+}
+
+export function buildLinuxDoFrontendRedirect(
+  params: Record<string, string | undefined | null> = {},
+): string {
+  const redirectUrl = new URL(resolveLinuxDoFrontendCallbackUrl());
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === "string" && value.trim()) {
+      redirectUrl.searchParams.set(key, value);
+    }
+  }
+  return redirectUrl.toString();
 }
 
 async function getAvailableLinuxDoUsername(baseUsername: string): Promise<string> {
@@ -561,16 +605,7 @@ async function upsertLinuxDoUser(profile: LinuxDoNormalizedProfile): Promise<{
 }
 
 function createLinuxDoErrorRedirect(message: string): string {
-  const callbackUrl = resolveLinuxDoFrontendCallbackUrl();
-
-  try {
-    const redirectUrl = new URL(callbackUrl);
-    redirectUrl.searchParams.set("error", message);
-    return redirectUrl.toString();
-  } catch {
-    const params = new URLSearchParams({ error: message });
-    return `${callbackUrl}?${params.toString()}`;
-  }
+  return buildLinuxDoFrontendRedirect({ error: message });
 }
 
 export function getLinuxDoConfigSummary(): LinuxDoConfigSummary {
@@ -578,7 +613,7 @@ export function getLinuxDoConfigSummary(): LinuxDoConfigSummary {
     enabled: isLinuxDoAuthEnabled(),
     clientIdConfigured: Boolean(config.linuxdo.clientId),
     callbackUrl: config.linuxdo.callbackUrl,
-    frontendCallbackUrl: config.linuxdo.frontendCallbackUrl,
+    frontendCallbackUrl: resolveLinuxDoFrontendCallbackUrl(),
     discoveryUrl: config.linuxdo.discoveryUrl,
     scopes: config.linuxdo.scopes,
   };
@@ -595,7 +630,7 @@ export function isLinuxDoAuthEnabled(): boolean {
 
 export async function createLinuxDoAuthorizationUrl(
   intent: LinuxDoAuthIntent,
-  options: { bindTargetUserId?: string } = {},
+  options: { bindTargetUserId?: string; client?: LinuxDoAuthClient } = {},
 ): Promise<string> {
   if (!isLinuxDoAuthEnabled()) {
     throw new Error("Linux.do 登录未配置");
@@ -610,12 +645,14 @@ export async function createLinuxDoAuthorizationUrl(
   const discoveryDocument = await getLinuxDoDiscoveryDocument();
   const state = crypto.randomBytes(24).toString("hex");
   const { codeVerifier, codeChallenge } = createPkcePair();
+  const client = options.client ?? "web";
 
   oauthStateStore.set(state, {
     intent,
     codeVerifier,
     expiresAt: Date.now() + STATE_TTL_MS,
     bindTargetUserId: options.bindTargetUserId,
+    client,
   });
 
   const params = new URLSearchParams({
@@ -636,6 +673,7 @@ function consumeLinuxDoState(state: string): {
   intent: LinuxDoAuthIntent;
   codeVerifier: string;
   bindTargetUserId?: string;
+  client: LinuxDoAuthClient;
 } {
   cleanupExpiredStates();
 
@@ -654,6 +692,7 @@ function consumeLinuxDoState(state: string): {
     intent: record.intent,
     codeVerifier: record.codeVerifier,
     bindTargetUserId: record.bindTargetUserId,
+    client: record.client || "web",
   };
 }
 
@@ -696,7 +735,7 @@ export async function completeLinuxDoAuthorization(params: {
     throw new Error("Linux.do 登录未配置");
   }
 
-  const { intent, codeVerifier, bindTargetUserId } = consumeLinuxDoState(state);
+  const { intent, codeVerifier, bindTargetUserId, client } = consumeLinuxDoState(state);
   const discoveryDocument = await getLinuxDoDiscoveryDocument();
   const accessToken = await exchangeAuthorizationCode({
     code,
@@ -771,7 +810,7 @@ export async function completeLinuxDoAuthorization(params: {
     });
 
     return {
-      redirectUrl: buildProviderBindPageRedirect(config.linuxdo.frontendCallbackUrl, session.sessionToken),
+      redirectUrl: buildProviderBindPageRedirect(resolveLinuxDoFrontendCallbackUrl(), session.sessionToken),
     };
   }
 
@@ -785,11 +824,6 @@ export async function completeLinuxDoAuthorization(params: {
     provider: "linuxdo",
   };
   const ticket = issueLinuxDoLoginTicket(payload);
-  const redirectParams = new URLSearchParams({
-    ticket,
-    intent,
-  });
-
   logger.info("[Linux.do Auth] OAuth callback completed", {
     userId: providerLoginPayload.user.id,
     username: providerLoginPayload.user.username,
@@ -800,7 +834,14 @@ export async function completeLinuxDoAuthorization(params: {
   });
 
   return {
-    redirectUrl: `${config.linuxdo.frontendCallbackUrl}?${redirectParams.toString()}`,
+    redirectUrl: buildLinuxDoCompletionRedirect(
+      {
+        ticket,
+        intent,
+        client,
+      },
+      client,
+    ),
     payload,
   };
 }

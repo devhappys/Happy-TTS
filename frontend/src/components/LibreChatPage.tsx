@@ -31,6 +31,7 @@ import PromptModal from './PromptModal';
 import { UnifiedLoadingSpinner } from './LoadingSpinner';
 import { LibreChatContext, LibreChatContextValue } from './LibreChatContext';
 import { LibreChatRealtimeDialog } from './LibreChatRealtimeDialog';
+import { getAuthToken } from '../utils/authSession';
 import {
   InfoBadge,
   InfoPanel,
@@ -310,7 +311,7 @@ const LibreChatPage: React.FC = () => {
   const apiBase = useMemo(() => getApiBaseUrl(), []);
   const getAdminHistoryHeaders = useCallback((): Record<string, string> | undefined => {
     if (!isAdmin) return undefined;
-    const sessionToken = localStorage.getItem('token');
+    const sessionToken = getAuthToken();
     return sessionToken ? { Authorization: `Bearer ${sessionToken}` } : undefined;
   }, [isAdmin]);
 
@@ -336,7 +337,7 @@ const LibreChatPage: React.FC = () => {
       return;
     }
     if (!token) {
-      const authToken = localStorage.getItem('token');
+      const authToken = getAuthToken();
       if (authToken) setToken(authToken);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

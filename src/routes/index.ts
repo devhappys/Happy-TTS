@@ -55,6 +55,7 @@ import ecoEnchantsWebhookRoutes from "./ecoEnchantsWebhookRoutes";
 import fbiWantedRoutes from "./fbiWantedRoutes";
 import frontendConfigRoutes from "./frontendConfigRoutes";
 import githubBillingRoutes from "./githubBillingRoutes";
+import linuxDoCreditRoutes from "./linuxDoCreditRoutes";
 import healthRoutes from "./healthRoutes";
 import humanCheckRoutes from "./humanCheckRoutes";
 import imageDataRoutes from "./imageDataRoutes";
@@ -72,6 +73,7 @@ import modlistRoutes from "./modlistRoutes";
 import networkRoutes from "./networkRoutes";
 import nexaiRoutes from "./nexaiRoutes";
 import nexaiSecurityRoutes from "./nexaiSecurityRoutes";
+import { nexaiRequestSignature } from "../middleware/nexaiRequestSignature";
 import openapiJsonRoutes from "./openapiJsonRoutes";
 import oauthRoutes from "./oauthRoutes";
 import outemailRoutes from "./outemailRoutes";
@@ -1213,6 +1215,24 @@ export const postTamperRouteModules: RouteModule[] = [
     isPublic: true,
   },
   {
+    name: "linuxdo-credit-routes",
+    path: "/api/linuxdo-credit",
+    router: linuxDoCreditRoutes,
+    requiresAuth: "mixed",
+    rateLimited: true,
+    isPublic: "mixed",
+    authPolicy: {
+      mode: "route",
+      handlers: ["authMiddleware"],
+      note: "Notify endpoints are public for merchant callbacks; recharge/order APIs require JWT.",
+    },
+    rateLimitPolicy: {
+      mode: "router",
+      limiters: ["linuxdo-credit-notify", "linuxdo-credit-recharge", "linuxdo-credit-read"],
+      note: "LINUX DO Credit routes apply route-level limiters inside the router.",
+    },
+  },
+  {
     name: "ecoenchants-routes",
     path: "/api/ecoenchants",
     router: ecoEnchantsRoutes,
@@ -1246,6 +1266,7 @@ export const postTamperRouteModules: RouteModule[] = [
     name: "nexai-routes",
     path: "/api/nexai",
     router: nexaiRoutes,
+    middlewares: [nexaiRequestSignature],
     requiresAuth: "mixed",
     rateLimited: true,
     isPublic: "mixed",
@@ -1276,10 +1297,21 @@ export const postTamperRouteModules: RouteModule[] = [
     name: "nexai-security-routes",
     path: "/api/nexai",
     router: nexaiSecurityRoutes,
-    middlewares: [nexaiSecurityLimiter],
+    middlewares: [nexaiRequestSignature, nexaiSecurityLimiter],
     requiresAuth: "mixed",
     rateLimited: true,
     isPublic: "mixed",
+    rateLimitPolicy: {
+      mode: "mixed",
+      limiters: [
+        "nexaiSecurityLimiter",
+        "nexaiSecurityReportLimiter",
+        "nexaiSecurityStatusLimiter",
+        "nexaiSecurityAuthLimiter",
+        "nexaiSecurityAdminLimiter",
+      ],
+      note: "NexAI security routes keep the mount limiter and add route-level createLimiter handlers for CodeQL-visible coverage on auth and admin endpoints.",
+    },
   },
   {
     name: "rust-benchmark-routes",

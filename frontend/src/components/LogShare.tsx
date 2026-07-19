@@ -29,6 +29,7 @@ import {
   FaCheck,
   FaEdit,
 } from 'react-icons/fa';
+import { getAuthToken } from '../utils/authSession';
 import {
   getStoredHistory,
   saveHistoryToStorage,
@@ -272,7 +273,7 @@ const LogShare: React.FC = React.memo(() => {
   const handleDeleteOne = async (id: string) => {
     try {
       await axios.delete(getApiBaseUrl() + `/api/sharelog/${id}`, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       });
       setNotification({ message: '删除成功', type: 'success' });
       await loadAllLogs();
@@ -289,7 +290,7 @@ const LogShare: React.FC = React.memo(() => {
     }
     try {
       await axios.post(getApiBaseUrl() + '/api/sharelog/delete-batch', { ids: selectedIds }, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       });
       setNotification({ message: '批量删除成功', type: 'success' });
       await loadAllLogs();
@@ -307,7 +308,7 @@ const LogShare: React.FC = React.memo(() => {
     if (!confirm('确定要删除所有日志吗？该操作不可恢复')) return;
     try {
       await axios.delete(getApiBaseUrl() + '/api/sharelog/all', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       });
       setNotification({ message: '已清空所有日志', type: 'success' });
       await loadAllLogs();
@@ -322,7 +323,7 @@ const LogShare: React.FC = React.memo(() => {
     try {
       const res = await axios.get(getApiBaseUrl() + '/api/logs/archives', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${getAuthToken()}`
         }
       });
       setArchives(res.data.archives || []);
@@ -348,7 +349,7 @@ const LogShare: React.FC = React.memo(() => {
         excludePattern: excludePattern || undefined
       }, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${getAuthToken()}`
         }
       });
 
@@ -377,7 +378,7 @@ const LogShare: React.FC = React.memo(() => {
     try {
       await axios.delete(getApiBaseUrl() + `/api/logs/archives/${archiveName}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${getAuthToken()}`
         }
       });
 
@@ -406,7 +407,7 @@ const LogShare: React.FC = React.memo(() => {
         fileName: editFileName || undefined,
         note: editNote || undefined,
       }, {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        headers: { 'Authorization': `Bearer ${getAuthToken()}` }
       });
       setNotification({ message: '保存成功', type: 'success' });
       setEditingLog(null);
@@ -628,13 +629,13 @@ const LogShare: React.FC = React.memo(() => {
     try {
       const res = await axios.get(getApiBaseUrl() + '/api/sharelog/all', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${getAuthToken()}`
         }
       });
 
       // 检查是否为加密数据
       if (isEncryptedLogSharePayload(res.data)) {
-        const token = localStorage.getItem('token');
+        const token = getAuthToken();
         if (!token) {
           throw new Error('Token不存在，无法解密');
         }

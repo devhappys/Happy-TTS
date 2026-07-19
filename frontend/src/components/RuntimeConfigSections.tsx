@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FaChevronDown, FaSync, FaUpload } from 'react-icons/fa';
 import getApiBaseUrl from '../api';
 import { useNotification } from './Notification';
+import { getAuthToken } from '../utils/authSession';
+
 
 const IPQS_API = getApiBaseUrl() + '/api/admin/ipqs/setting';
 const LINUXDO_API = getApiBaseUrl() + '/api/admin/linuxdo/setting';
@@ -13,7 +15,7 @@ const ADMIN_SECURITY_API = getApiBaseUrl() + '/api/admin/admin-security/setting'
 type RuntimeConfigSectionKey = 'ipqs' | 'linuxdo' | 'googleAuth' | 'deeplx' | 'nexai' | 'adminSecurity';
 
 function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem('token');
+  const token = getAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -1187,6 +1189,9 @@ const RuntimeConfigSections: React.FC = () => {
               onChange={(e) => setLinuxdoForm((prev) => ({ ...prev, callbackUrl: e.target.value }))}
               className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800"
             />
+            <p className="mt-1 text-xs text-slate-500">
+              OAuth 服务端回调（redirect_uri），应为 <code>/api/auth/linuxdo/callback</code>。
+            </p>
           </div>
           <div>
             <FieldLabel label="Frontend Callback URL" />
@@ -1195,6 +1200,10 @@ const RuntimeConfigSections: React.FC = () => {
               onChange={(e) => setLinuxdoForm((prev) => ({ ...prev, frontendCallbackUrl: e.target.value }))}
               className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800"
             />
+            <p className="mt-1 text-xs text-slate-500">
+              浏览器完成页，必须是 SPA 路径 <code>/auth/linuxdo/callback</code>。不要填后端
+              <code>/api/auth/linuxdo/callback</code>，否则会 302 循环并触发 429。
+            </p>
           </div>
         </div>
 
@@ -1223,7 +1232,7 @@ const RuntimeConfigSections: React.FC = () => {
 
       <SectionCard
         title="Google Auth 运行时配置"
-        description="主站 Google 登录使用这里的 Client ID，支持一键导入 Google 控制台下载的 OAuth JSON，不与 NexAI OAuth 配置共用。"
+        description="主站 GSI 登录配置（GOOGLE_CLIENT_ID）。也可在上方「Google / NexAI Client ID 环境变量」区块快速配置。仅使用 Web application Client ID；支持导入 web JSON，拒绝 Desktop/Installed JSON。"
         isOpen={isSectionOpen('googleAuth')}
         loading={isRuntimeSectionLoading('googleAuth', googleAuthLoading)}
         onToggle={() => toggleSection('googleAuth')}
@@ -1242,7 +1251,7 @@ const RuntimeConfigSections: React.FC = () => {
             <div>
               <div className="text-sm font-medium text-slate-800">导入 Google OAuth JSON</div>
               <div className="mt-1 text-xs text-slate-500">
-                支持 Google Cloud Console 下载的 `web` / `installed` JSON，系统会自动提取 `client_id` 并保存到主站 Google 登录配置。
+                请导入 Google Cloud Console 下载的 `web` 类型 OAuth JSON（应用类型：Web application）。系统会提取 `web.client_id`。Desktop/`installed` JSON 不符合 GSI 要求，将被拒绝。配置前请在凭据中加入前端 origin，例如 `https://tts.chloemlla.com` 与本地 `http://localhost:3001`。
               </div>
             </div>
             <button
@@ -1259,12 +1268,18 @@ const RuntimeConfigSections: React.FC = () => {
 
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <FieldLabel label="Google Client ID" />
+            <FieldLabel label="GOOGLE_CLIENT_ID (Web application)" />
             <input
               value={googleAuthForm.clientId}
               onChange={(e) => setGoogleAuthForm((prev) => ({ ...prev, clientId: e.target.value }))}
+              placeholder="GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com"
               className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800"
+              autoComplete="off"
+              spellCheck={false}
             />
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              对应环境变量 <code className="rounded bg-slate-100 px-1">GOOGLE_CLIENT_ID</code>。也可在进程环境 / <code className="rounded bg-slate-100 px-1">.env</code> 中配置同名变量作为启动默认值；此处保存到运行时配置后立即生效。官方步骤：Google Cloud Console → API 和服务 → 凭据 → 创建 OAuth 客户端 ID → 应用类型选「Web 应用」→ 配置 Authorized JavaScript origins。GSI 按钮登录只需 Client ID，不需要 Client Secret。
+            </p>
           </div>
         </div>
 
@@ -1351,7 +1366,7 @@ const RuntimeConfigSections: React.FC = () => {
 
       <SectionCard
         title="NexAI 运行时配置"
-        description="NexAI JWT、OAuth 和前端回调地址改为直接由 EnvManager 管理。"
+        description="NexAI JWT、OAuth 与前端回调。Google 字段对应 NEXAI_GOOGLE_CLIENT_ID（可在上方快捷配置区块修改），与主站 Google Auth 独立。"
         isOpen={isSectionOpen('nexai')}
         loading={isRuntimeSectionLoading('nexai', nexaiLoading)}
         onToggle={() => toggleSection('nexai')}
@@ -1392,12 +1407,18 @@ const RuntimeConfigSections: React.FC = () => {
             />
           </div>
           <div>
-            <FieldLabel label="Google Client ID" />
+            <FieldLabel label="NEXAI_GOOGLE_CLIENT_ID" />
             <input
               value={nexaiForm.googleClientId}
               onChange={(e) => setNexaiForm((prev) => ({ ...prev, googleClientId: e.target.value }))}
+              placeholder="NEXAI_GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com"
               className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800"
+              autoComplete="off"
+              spellCheck={false}
             />
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              对应环境变量 <code className="rounded bg-slate-100 px-1">NEXAI_GOOGLE_CLIENT_ID</code>（可回退使用 <code className="rounded bg-slate-100 px-1">GOOGLE_CLIENT_ID</code>）。保存到 NexAI 运行时配置后立即生效，与主站 Google Auth 配置独立。
+            </p>
           </div>
           <div>
             <FieldLabel label="GitHub Client ID" />

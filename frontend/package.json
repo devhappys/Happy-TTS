@@ -2,6 +2,7 @@
   "name": "synapse-frontend",
   "private": true,
   "version": "1.0.0",
+  "packageManager": "pnpm@11.11.0",
   "type": "module",
   "sideEffects": [
     "*.css",
@@ -53,7 +54,7 @@
     "jszip": "^3.10.1",
     "katex": "^0.17.0",
     "lodash.merge": "^4.6.2",
-    "lucide-react": "^1.21.0",
+    "lucide-react": "^1.24.0",
     "marked": "^18.0.5",
     "marked-highlight": "^2.2.4",
     "marked-katex-extension": "^5.1.10",
@@ -70,7 +71,7 @@
     "react-icons": "^5.6.0",
     "react-inspector": "^9.0.0",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.18.0",
+    "react-router-dom": "^7.18.1",
     "react-syntax-highlighter": "^16.1.1",
     "react-toastify": "^11.1.0",
     "rehype-katex": "^7.0.1",
@@ -107,33 +108,12 @@
     "postcss": "^8.5.15",
     "rollup-plugin-visualizer": "^7.0.1",
     "tailwind-scrollbar": "^4.0.2",
-    "tailwindcss": "^4.3.1",
+    "tailwindcss": "^4.3.2",
     "terser": "^5.48.0",
     "typescript": "^6.0.3",
     "vite": "^8.1.0",
     "vite-auto-i18n-plugin": "^1.1.16",
     "vite-plugin-obfuscator": "^1.0.5",
     "vitest": "^4.1.9"
-  },
-  "pnpm": {
-    "overrides": {
-      "marked": "$marked",
-      "react": "$react",
-      "react-dom": "$react-dom",
-      "lodash-es": ">=4.18.1",
-      "minimatch": ">=10.2.1",
-      "dompurify": "$dompurify",
-      "lodash": ">=4.18.0",
-      "esbuild": ">=0.28.1",
-      "undici": ">=7.28.0",
-      "js-yaml": ">=4.2.0"
-    },
-    "peerDependencyRules": {
-      "allowedVersions": {
-        "react": "19",
-        "react-dom": "19",
-        "marked": "17"
-      }
-    }
   }
 }

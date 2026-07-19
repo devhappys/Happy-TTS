@@ -5,7 +5,8 @@ import { Link } from 'react-router-dom';
 import { useNotification } from './Notification';
 import { api } from '../api/index';
 import { useAuth } from '../hooks/useAuth';
-import CryptoJS from 'crypto-js';
+import { decryptCommandEnvelope } from '../utils/commandCrypto';
+import { getAuthToken } from '../utils/authSession';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -31,38 +32,34 @@ ChartJS.register(
   Filler
 );
 
-// AES-256解密函数
-function decryptAES256(encryptedData: string, iv: string, key: string): string {
-  try {
-    console.log('   开始AES-256解密...');
-    console.log('   密钥长度:', key.length);
-    console.log('   加密数据长度:', encryptedData.length);
-    console.log('   IV长度:', iv.length);
-    
-    const keyBytes = CryptoJS.SHA256(key);
-    const ivBytes = CryptoJS.enc.Hex.parse(iv);
-    const encryptedBytes = CryptoJS.enc.Hex.parse(encryptedData);
-    
-    console.log('   密钥哈希完成，开始解密...');
-    
-    const decrypted = CryptoJS.AES.decrypt(
-      { ciphertext: encryptedBytes },
-      keyBytes,
-      {
-        iv: ivBytes,
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7
-      }
-    );
-    
-    const result = decrypted.toString(CryptoJS.enc.Utf8);
-    console.log('   解密完成，结果长度:', result.length);
-    
-    return result;
-  } catch (error) {
-    console.error('❌ AES-256解密失败:', error);
-    throw new Error('解密失败');
+
+
+function resolveCommandPayload(data: any): any {
+  if (data == null) return data;
+  if (data.mode === 'cookie-session' && 'payload' in data) return data.payload;
+  if (data.payload !== undefined && !data.data) return data.payload;
+  return data;
+}
+
+async function maybeDecryptCommandResponse(data: any): Promise<any> {
+  if (data?.data && data?.iv && typeof data.data === 'string' && typeof data.iv === 'string') {
+    return decryptWithSessionToken(data);
   }
+  return resolveCommandPayload(data);
+}
+
+async function decryptWithSessionToken(envelope: {
+  data: string;
+  iv: string;
+  tag?: string;
+  version?: number;
+  algorithm?: string;
+}): Promise<any> {
+  const token = getAuthToken();
+  if (!token) {
+    throw new Error('Token不存在，无法解密数据');
+  }
+  return decryptCommandEnvelope(envelope, token);
 }
 
 interface CommandHistory {
@@ -145,37 +142,32 @@ const CommandManager: React.FC = () => {
   const fetchServerStatus = async (showSuccess = true) => {
     try {
       const response = await api.post('/api/command/status', { password });
-      // 检查是否为加密数据
-      if (response.data.data && response.data.iv && typeof response.data.data === 'string' && typeof response.data.iv === 'string') {
-        try {
-          const token = localStorage.getItem('token');
-          if (!token) {
-            setNotification({ message: 'Token不存在，无法解密数据', type: 'error' });
-            return;
-          }
-          const decryptedJson = decryptAES256(response.data.data, response.data.iv, token);
-          const decryptedData = JSON.parse(decryptedJson);
-          setServerStatus(decryptedData);
+      try {
+        const statusData = await maybeDecryptCommandResponse(response.data);
+        if (statusData && (statusData.memory_usage || response.data?.data)) {
+          setServerStatus(statusData);
           setLastUpdateTime(new Date());
           // 添加资源使用历史记录
-          const currentTime = new Date();
-          const memoryUsagePercent = (decryptedData.memory_usage.heapUsed / decryptedData.memory_usage.heapTotal) * 100;
-          setResourceHistory(prev => {
-            const newHistory = [...prev, {
-              timestamp: currentTime,
-              memoryUsage: memoryUsagePercent,
-              cpuUsage: decryptedData.cpu_usage_percent
-            }];
-            return newHistory.slice(-20);
-          });
+          if (statusData.memory_usage?.heapTotal) {
+            const currentTime = new Date();
+            const memoryUsagePercent = (statusData.memory_usage.heapUsed / statusData.memory_usage.heapTotal) * 100;
+            setResourceHistory(prev => {
+              const newHistory = [...prev, {
+                timestamp: currentTime,
+                memoryUsage: memoryUsagePercent,
+                cpuUsage: statusData.cpu_usage_percent
+              }];
+              return newHistory.slice(-20);
+            });
+          }
           if (showSuccess) setNotification({ message: '服务器状态获取成功', type: 'success' });
-        } catch (decryptError) {
-          setNotification({ message: '数据解密失败，请检查登录状态', type: 'error' });
+        } else {
+          setServerStatus(resolveCommandPayload(response.data));
+          setLastUpdateTime(new Date());
+          if (showSuccess) setNotification({ message: '服务器状态获取成功', type: 'success' });
         }
-      } else {
-        setServerStatus(response.data);
-        setLastUpdateTime(new Date());
-        if (showSuccess) setNotification({ message: '服务器状态获取成功', type: 'success' });
+      } catch (decryptError) {
+        setNotification({ message: '数据解密失败，请检查登录状态', type: 'error' });
       }
     } catch (error: any) {
       setNotification({ 
@@ -285,25 +277,10 @@ const CommandManager: React.FC = () => {
       // 检查是否为加密数据
       if (response.data.data && response.data.iv && typeof response.data.data === 'string' && typeof response.data.iv === 'string') {
         try {
-          console.log('🔐 开始解密命令队列数据...');
-          console.log('   加密数据长度:', response.data.data.length);
-          console.log('   IV:', response.data.iv);
+                                        
+          const decryptedData = await maybeDecryptCommandResponse(response.data);
           
-          const token = localStorage.getItem('token');
-          if (!token) {
-            console.error('❌ 登录凭证不存在，无法解密数据');
-            setNotification({ message: 'Token不存在，无法解密数据', type: 'error' });
-            return;
-          }
-          
-          console.log('   使用登录凭证进行解密');
-          
-          // 解密数据
-          const decryptedJson = decryptAES256(response.data.data, response.data.iv, token);
-          const decryptedData = JSON.parse(decryptedJson);
-          
-          console.log('✅ 解密成功，获取到命令队列数据');
-          
+                    
           if (Array.isArray(decryptedData)) {
             setCommandQueue(decryptedData);
           } else if (decryptedData.command) {
@@ -314,13 +291,11 @@ const CommandManager: React.FC = () => {
           setQueueLoaded(true);
           setNotification({ message: '命令队列加载成功', type: 'success' });
         } catch (decryptError) {
-          console.error('❌ 解密失败:', decryptError);
-          setNotification({ message: '数据解密失败，请检查登录状态', type: 'error' });
+                    setNotification({ message: '数据解密失败，请检查登录状态', type: 'error' });
         }
       } else {
         // 兼容未加密格式
-        console.log('📝 使用未加密格式数据');
-        if (Array.isArray(response.data)) {
+                if (Array.isArray(response.data)) {
           setCommandQueue(response.data);
         } else if (response.data.command) {
           setCommandQueue([response.data]);
@@ -348,25 +323,10 @@ const CommandManager: React.FC = () => {
       // 检查是否为加密数据
       if (response.data.data && response.data.iv && typeof response.data.data === 'string' && typeof response.data.iv === 'string') {
         try {
-          console.log('🔐 开始解密命令队列数据...');
-          console.log('   加密数据长度:', response.data.data.length);
-          console.log('   IV:', response.data.iv);
+                                        
+          const decryptedData = await maybeDecryptCommandResponse(response.data);
           
-          const token = localStorage.getItem('token');
-          if (!token) {
-            console.error('❌ 登录凭证不存在，无法解密数据');
-            setNotification({ message: 'Token不存在，无法解密数据', type: 'error' });
-            return;
-          }
-          
-          console.log('   使用登录凭证进行解密');
-          
-          // 解密数据
-          const decryptedJson = decryptAES256(response.data.data, response.data.iv, token);
-          const decryptedData = JSON.parse(decryptedJson);
-          
-          console.log('✅ 解密成功，获取到命令队列数据');
-          
+                    
           if (decryptedData.command) {
             setNotification({ 
               message: `下一个命令: ${decryptedData.command}`, 
@@ -376,13 +336,11 @@ const CommandManager: React.FC = () => {
             setNotification({ message: '队列中没有命令', type: 'info' });
           }
         } catch (decryptError) {
-          console.error('❌ 解密失败:', decryptError);
-          setNotification({ message: '数据解密失败，请检查登录状态', type: 'error' });
+                    setNotification({ message: '数据解密失败，请检查登录状态', type: 'error' });
         }
       } else {
         // 兼容未加密格式
-        console.log('📝 使用未加密格式数据');
-        if (response.data.command) {
+                if (response.data.command) {
           setNotification({ 
             message: `下一个命令: ${response.data.command}`, 
             type: 'info' 
@@ -425,21 +383,8 @@ const CommandManager: React.FC = () => {
       if (response.data.data && response.data.iv && typeof response.data.data === 'string' && typeof response.data.iv === 'string') {
         try {
           console.log('🔐 开始解密执行历史数据...');
-          console.log('   加密数据长度:', response.data.data.length);
-          console.log('   IV:', response.data.iv);
-          
-          const token = localStorage.getItem('token');
-          if (!token) {
-            console.error('❌ 登录凭证不存在，无法解密数据');
-            setNotification({ message: 'Token不存在，无法解密数据', type: 'error' });
-            return;
-          }
-          
-          console.log('   使用登录凭证进行解密');
-          
-          // 解密数据
-          const decryptedJson = decryptAES256(response.data.data, response.data.iv, token);
-          const decryptedData = JSON.parse(decryptedJson);
+                              
+          const decryptedData = await maybeDecryptCommandResponse(response.data);
           
           console.log('✅ 解密成功，获取到执行历史数据');
           
@@ -451,13 +396,11 @@ const CommandManager: React.FC = () => {
           setHistoryLoaded(true);
           setNotification({ message: '执行历史加载成功', type: 'success' });
         } catch (decryptError) {
-          console.error('❌ 解密失败:', decryptError);
-          setNotification({ message: '数据解密失败，请检查登录状态', type: 'error' });
+                    setNotification({ message: '数据解密失败，请检查登录状态', type: 'error' });
         }
       } else {
         // 兼容未加密格式
-        console.log('📝 使用未加密格式数据');
-        if (Array.isArray(response.data)) {
+                if (Array.isArray(response.data)) {
           setCommandHistory(response.data);
         } else {
           setCommandHistory([]);

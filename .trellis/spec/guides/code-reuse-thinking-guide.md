@@ -97,6 +97,24 @@ When you've made similar changes to multiple files:
 
 ---
 
+## Gotcha: Generated Config Snapshots May Normalize Values
+
+**Problem**: Generated metadata can store normalized values instead of copying source configuration literally. For example, pnpm resolves override references such as `$react` to the matching direct dependency specifier before writing `pnpm-lock.yaml`.
+
+**Symptom**: The manifest and lockfile look equivalent to a reviewer, but `pnpm install --frozen-lockfile` reports `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`.
+
+**Prevention checklist**:
+- [ ] Use the same package-manager version as CI when reasoning about generated lockfile fields
+- [ ] Declare the exact package-manager version in every install root's manifest and keep Docker/CI setup on that same version
+- [ ] After upgrading pnpm, check migration warnings: pnpm 11.11+ reads `overrides`, `peerDependencyRules`, and the replacement `allowBuilds` map from `pnpm-workspace.yaml`, not `package.json#pnpm` or legacy `onlyBuiltDependencies`
+- [ ] Ensure Docker copies `pnpm-workspace.yaml` before a frozen install; copying only the manifest and lockfile changes the effective configuration
+- [ ] Check whether references, aliases, catalogs, or environment values are normalized before persistence
+- [ ] Compare the generated representation, not only the source text
+- [ ] Keep every manifest and its corresponding lockfile synchronized when a repository has multiple install roots
+- [ ] Treat package-manager update notices as informational; diagnose frozen-lockfile mismatches by comparing the pinned generator version and generated snapshot
+
+---
+
 ## Checklist Before Commit
 
 - [ ] Searched for existing similar code

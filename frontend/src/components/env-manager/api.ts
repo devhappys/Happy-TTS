@@ -1,4 +1,6 @@
 import getApiBaseUrl from '../../api';
+import { getAuthToken } from '../../utils/authSession';
+
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -15,9 +17,13 @@ export const HCAPTCHA_CONFIG_API = `${API_BASE_URL}/api/turnstile/hcaptcha-confi
 export const CLARITY_CONFIG_API = `${API_BASE_URL}/api/tts/clarity/config`;
 export const GITHUB_BILLING_CONFIG_API = `${API_BASE_URL}/api/github-billing/config`;
 export const GITHUB_BILLING_MULTI_CONFIG_API = `${API_BASE_URL}/api/github-billing/multi-config`;
+export const GOOGLE_AUTH_API = `${API_BASE_URL}/api/admin/google-auth/setting`;
+export const NEXAI_SETTING_API = `${API_BASE_URL}/api/admin/nexai/setting`;
+export const SYNAPSE_ANDROID_API = `${API_BASE_URL}/api/admin/synapse-android/setting`;
+export const GOOGLE_WEB_CLIENT_ID_PATTERN = /^[\w-]+\.apps\.googleusercontent\.com$/i;
 
 export function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem('token');
+  const token = getAuthToken();
   if (token) return { Authorization: `Bearer ${token}` };
   return {};
 }

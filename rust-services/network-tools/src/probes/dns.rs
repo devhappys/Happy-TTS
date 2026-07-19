@@ -1,9 +1,10 @@
 use std::time::Duration;
 
 use hickory_resolver::{
-    config::{ResolverConfig, ResolverOpts},
-    proto::rr::RecordType,
-    TokioAsyncResolver,
+    config::{ResolverConfig, ResolverOpts, CLOUDFLARE},
+    net::runtime::TokioRuntimeProvider,
+    proto::rr::{RData, RecordType},
+    TokioResolver,
 };
 use tokio::{net::lookup_host, time};
 
@@ -14,7 +15,7 @@ pub async fn resolve_records(
     record_types: &[String],
     timeout: Duration,
 ) -> Result<Vec<DnsRecord>, AppError> {
-    let mut resolver: Option<TokioAsyncResolver> = None;
+    let mut resolver: Option<TokioResolver> = None;
     let mut records = Vec::new();
 
     for record_type in record_types {
@@ -49,12 +50,18 @@ pub async fn resolve_records(
     Ok(records)
 }
 
-fn build_hickory_resolver(timeout: Duration) -> TokioAsyncResolver {
+fn build_hickory_resolver(timeout: Duration) -> TokioResolver {
     let mut opts = ResolverOpts::default();
     opts.timeout = timeout;
     opts.attempts = 1;
     opts.num_concurrent_reqs = 1;
-    TokioAsyncResolver::tokio(ResolverConfig::default(), opts)
+    TokioResolver::builder_with_config(
+        ResolverConfig::udp_and_tcp(&CLOUDFLARE),
+        TokioRuntimeProvider::default(),
+    )
+    .with_options(opts)
+    .build()
+    .expect("failed to build hickory resolver")
 }
 
 async fn lookup_system_ip_records(
@@ -75,7 +82,7 @@ async fn lookup_system_ip_records(
 }
 
 async fn lookup_generic_records(
-    resolver: &TokioAsyncResolver,
+    resolver: &TokioResolver,
     address: &str,
     record_type: RecordType,
     timeout: Duration,
@@ -85,11 +92,15 @@ async fn lookup_generic_records(
         return Ok(Vec::new());
     };
 
-    Ok(response.iter().map(|record| record.to_string()).collect())
+    Ok(response
+        .answers()
+        .iter()
+        .map(|record| record.data.to_string())
+        .collect())
 }
 
 async fn lookup_mx_records(
-    resolver: &TokioAsyncResolver,
+    resolver: &TokioResolver,
     address: &str,
     timeout: Duration,
 ) -> Result<Vec<String>, AppError> {
@@ -99,13 +110,17 @@ async fn lookup_mx_records(
     };
 
     Ok(response
+        .answers()
         .iter()
-        .map(|record| format!("{} {}", record.preference(), record.exchange()))
+        .filter_map(|record| match &record.data {
+            RData::MX(mx) => Some(format!("{} {}", mx.preference, mx.exchange)),
+            _ => None,
+        })
         .collect())
 }
 
 async fn lookup_txt_records(
-    resolver: &TokioAsyncResolver,
+    resolver: &TokioResolver,
     address: &str,
     timeout: Duration,
 ) -> Result<Vec<String>, AppError> {
@@ -115,14 +130,18 @@ async fn lookup_txt_records(
     };
 
     Ok(response
+        .answers()
         .iter()
-        .flat_map(|record| {
-            record
-                .txt_data()
-                .iter()
-                .map(|part| String::from_utf8_lossy(part).to_string())
-                .collect::<Vec<_>>()
+        .filter_map(|record| match &record.data {
+            RData::TXT(txt) => Some(
+                txt.txt_data
+                    .iter()
+                    .map(|part| String::from_utf8_lossy(part).to_string())
+                    .collect::<Vec<_>>(),
+            ),
+            _ => None,
         })
+        .flatten()
         .collect())
 }
 

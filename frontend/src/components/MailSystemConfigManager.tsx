@@ -4,6 +4,7 @@ import { FaRedo, FaSave, FaSync, FaTrash } from 'react-icons/fa';
 import { getApiBaseUrl } from '../api/api';
 import { SimpleLoadingSpinner } from './LoadingSpinner';
 import { useNotification } from './Notification';
+import { getAuthToken } from '../utils/authSession';
 import {
   InfoPanel,
   InfoSectionTitle,
@@ -75,7 +76,7 @@ const defaultForm: MailSystemForm = {
 };
 
 function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem('token');
+  const token = getAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 

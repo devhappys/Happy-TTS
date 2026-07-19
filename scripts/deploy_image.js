@@ -51,7 +51,11 @@ class InMemoryLogHandler {
 
   emit(level, message, options = {}) {
     const timestamp = new Date().toISOString().replace("T", " ").slice(0, 19);
-    const safeMessage = options.sensitive ? "[sensitive output redacted]" : message;
+    // Always treat runtime values as potentially secret-bearing (env/keys/passwords).
+    // Keep only a non-sensitive summary for console/file logging.
+    const safeMessage = options.sensitive
+      ? "[sensitive output redacted]"
+      : sanitizeDeployLogMessage(String(message ?? ""));
     const logEntry = `${timestamp} - ${level} - ${safeMessage}`;
     this.logs.push(logEntry);
 
@@ -68,6 +72,18 @@ class InMemoryLogHandler {
 
 // 全局日志处理器实例
 const inMemoryHandler = new InMemoryLogHandler();
+
+function sanitizeDeployLogMessage(message) {
+  let sanitized = message;
+  // Redact common secret material that may appear in command output or env-derived values.
+  sanitized = sanitized.replace(/(PRIVATE_KEY|ADMIN_PASSWORD|PASSWORD|TOKEN|SECRET|API[_-]?KEY)\s*[:=]\s*\S+/gi, "$1=[REDACTED]");
+  sanitized = sanitized.replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, "[REDACTED PRIVATE KEY]");
+  // Avoid logging raw process environment snapshots.
+  if (/\bprocess\.env\b/i.test(sanitized) || /Environment:\s*\{/i.test(sanitized)) {
+    return "[environment details redacted]";
+  }
+  return sanitized;
+}
 
 // 日志函数
 function log(message, level = "INFO", options = {}) {
@@ -196,7 +212,8 @@ function remoteLogin(serverAddress, username, port, privateKey) {
     }
 
     conn.on("ready", () => {
-      logInfo(`SSH连接成功: ${username}@${serverAddress}:${port}`);
+      // Never log env-derived SSH usernames; they are treated as sensitive credentials.
+      logInfo(`SSH连接成功: [redacted]@${serverAddress}:${port}`);
       resolve(conn);
     });
 
@@ -1115,12 +1132,11 @@ async function queryLogFile(logId, adminPassword) {
 /**
  * 写入部署日志 - 对应 Python 的 write_deploy_log
  * @param {string} serverAddress
- * @param {string} username
  * @param {string[]} containerNames
  * @param {string} imageUrl
  * @returns {string}
  */
-function writeDeployLog(serverAddress, username, containerNames, imageUrl) {
+function writeDeployLog(serverAddress, containerNames, imageUrl) {
   const logPath = "deploy.log";
   const timestamp = new Date().toLocaleString("zh-CN", {
     year: "numeric",
@@ -1135,7 +1151,8 @@ function writeDeployLog(serverAddress, username, containerNames, imageUrl) {
   const logContent = [
     `部署时间: ${timestamp}`,
     `服务器: ${serverAddress}`,
-    `用户名: ${username}`,
+    // Keep env-derived usernames out of on-disk deploy logs.
+    `用户名: [redacted]`,
     `容器: ${containerNames.join(", ")}`,
     `镜像: ${imageUrl}`,
     "",
@@ -1240,12 +1257,7 @@ async function main() {
       await new Promise((resolve) => setTimeout(resolve, 15000));
 
       // 生成并上传日志
-      const logPath = writeDeployLog(
-        serverAddress,
-        username,
-        containerNames,
-        imageUrl,
-      );
+      const logPath = writeDeployLog(serverAddress, containerNames, imageUrl);
       const link = await uploadLogFile(logPath, adminPassword);
       if (link) {
         logInfo(`日志已上传: ${link}`);

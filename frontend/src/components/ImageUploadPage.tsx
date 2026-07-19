@@ -8,6 +8,7 @@ import { imageDataApi } from '../api/imageData';
 import { openDB, deleteDB } from 'idb';
 import { TurnstileWidget } from './TurnstileWidget';
 import { useTurnstileConfig } from '../hooks/useTurnstileConfig';
+import { getAuthToken } from '../utils/authSession';
 import {
   FaImage,
   FaUpload,
@@ -517,7 +518,7 @@ const ImageUploadPage: React.FC = () => {
       if (!!turnstileConfig.siteKey && turnstileToken) {
         formData.append('cfToken', turnstileToken);
       }
-      const token = localStorage.getItem('token');
+      const token = getAuthToken();
       const authenticated = Boolean(token);
       const uploadUrl = getApiBaseUrl() + '/api/ipfs/upload';
       console.log('[图片上传] 开始上传:', { uploadUrl, fileName: file.name, fileSize: file.size, authenticated });
@@ -625,7 +626,7 @@ const ImageUploadPage: React.FC = () => {
     }
 
     setBatchUploading(true);
-    const token = localStorage.getItem('token');
+    const token = getAuthToken();
     const uploadUrl = getApiBaseUrl() + '/api/ipfs/upload';
 
     console.log('[批量上传] 开始上传，文件数量:', batchFiles.length);

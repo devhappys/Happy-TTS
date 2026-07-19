@@ -1,9 +1,8 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
-import { startAuthentication } from '@simplewebauthn/browser';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { api } from '../api/api';
-import { getClientOrigin, passkeyApi } from '../api/passkey';
+import { getClientOrigin } from '../api/passkey';
 import { getSignHeaders } from '../utils/requestSigner';
 
 import { useNavigate } from 'react-router-dom';
@@ -13,25 +12,74 @@ import {
   FaUserPlus,
   FaEdit,
   FaTrash,
-  FaSave,
   FaTimes,
-  FaUser,
-  FaKey,
   FaList,
-  FaShieldAlt,
-  FaCog,
-  FaChevronDown,
-  FaChevronUp,
   FaSearch,
   FaSyncAlt,
 } from 'react-icons/fa';
+
+import {
+  ACCOUNT_STATUS_FILTER_OPTIONS,
+  BULK_ACTION_OPTIONS,
+  CreateUserForm,
+  DEFAULT_PAGINATION,
+  DEFAULT_STATS,
+  DEFAULT_USER_LIST_FILTERS,
+  EditUserForm,
+  PAGE_SIZE_OPTIONS,
+  ROLE_FILTER_OPTIONS,
+  SECURITY_FILTER_OPTIONS,
+  SORT_OPTIONS,
+  TABLE_COLUMNS,
+  TICKET_FILTER_OPTIONS,
+  TRANSLATION_FILTER_OPTIONS,
+  buildFingerprintListPatch,
+  createDefaultCollapsedSections,
+  getAdminPasskeyAuthResponse,
+  getLatestFingerprint,
+  getUserFingerprintCount,
+  parseBackupCodes,
+  type BulkUserAction,
+  type CollapsedSectionState,
+  type CollapsibleSectionKey,
+  type UserFormChangeHandler,
+  type UserListAccountStatusFilter,
+  type UserListFilters,
+  type UserListPagination,
+  type UserListRoleFilter,
+  type UserListSecurityFilter,
+  type UserListSortOrder,
+  type UserListStats,
+  type UserListTicketFilter,
+  type UserListTranslationFilter,
+} from './user-management/UserFormControls';
+import {
+  RevealPasswordModal,
+  type RevealPasswordMethod,
+  type RevealPasswordState as ModalRevealPasswordState,
+} from './user-management/RevealPasswordModal';
+
+
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (typeof error === 'object' && error !== null) {
+    const maybe = error as { response?: { data?: { error?: string } }; message?: string };
+    return maybe.response?.data?.error || maybe.message || fallback;
+  }
+  return fallback;
+};
 
 interface FingerprintRecord {
   id: string;
   ts: number;
   ua?: string;
   ip?: string;
-  deviceInfo?: any;
+  deviceInfo?: {
+    screen?: { w?: number; h?: number };
+    timezone?: { tz?: string };
+    navigator?: { userAgent?: string };
+    [key: string]: unknown;
+  };
 }
 
 interface PasskeyCredential {
@@ -85,11 +133,9 @@ interface User {
   accountStatus?: 'active' | 'suspended';
 }
 
-type RevealPasswordMethod = 'password' | 'totp' | 'passkey';
-
 interface RevealPasswordState {
   open: boolean;
-  targetUser: User | null;
+  targetUser: { id: string; username: string } | null;
   reason: string;
   method: RevealPasswordMethod;
   password: string;
@@ -97,61 +143,6 @@ interface RevealPasswordState {
   verificationToken: string;
   revealedPassword: string;
   loading: boolean;
-}
-
-type UserListRoleFilter = 'all' | 'user' | 'admin' | 'trusted';
-type UserListAccountStatusFilter = 'all' | 'active' | 'suspended';
-type UserListSecurityFilter = 'all' | 'totp' | 'passkey' | 'fingerprintRequired' | 'noMfa';
-type UserListTicketFilter = 'all' | 'normal' | 'violated' | 'banned';
-type UserListTranslationFilter = 'all' | 'enabled' | 'disabled' | 'limited';
-type UserListSortOrder = 'asc' | 'desc';
-type BulkUserAction =
-  | 'resetDailyUsage'
-  | 'requireFingerprint'
-  | 'clearFingerprintRequirement'
-  | 'suspend'
-  | 'activate'
-  | 'enableTranslation'
-  | 'disableTranslation'
-  | 'clearTranslationRestrictions'
-  | 'clearTicketRestrictions'
-  | 'resetMfa';
-
-interface UserListFilters {
-  keyword: string;
-  role: UserListRoleFilter;
-  accountStatus: UserListAccountStatusFilter;
-  security: UserListSecurityFilter;
-  ticket: UserListTicketFilter;
-  translation: UserListTranslationFilter;
-  sortBy: string;
-  sortOrder: UserListSortOrder;
-  pageSize: number;
-}
-
-interface UserListPagination {
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-}
-
-interface UserListStats {
-  total: number;
-  users: number;
-  admins: number;
-  trusted: number;
-  active: number;
-  suspended: number;
-  totpEnabled: number;
-  passkeyEnabled: number;
-  fingerprintRequired: number;
-  withFingerprints: number;
-  ticketViolated: number;
-  ticketBanned: number;
-  translationDisabled: number;
-  translationLimited: number;
-  totalDailyUsage: number;
 }
 
 interface UserListEnvelope {
@@ -205,786 +196,6 @@ const emptyRevealPasswordState: RevealPasswordState = {
 
 const ROW_INITIAL = { opacity: 0, x: -20 } as const;
 const ROW_ANIMATE = { opacity: 1, x: 0 } as const;
-
-type UserFormChangeEvent = React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>;
-type UserFormChangeHandler = (event: UserFormChangeEvent) => void;
-type MotionScaleHandler = (scale: number, enabled?: boolean) => { scale: number } | undefined;
-type CollapsibleSectionKey = 'token' | 'security' | 'fingerprint' | 'backupCodes';
-type CollapsedSectionState = Record<CollapsibleSectionKey, boolean>;
-
-type UserFormSectionProps = {
-  title: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-  collapsed?: boolean;
-  onToggle?: () => void;
-  contentClassName?: string;
-};
-
-type UserTextFieldProps = {
-  label: string;
-  name: keyof User;
-  value: string | number;
-  onChange: UserFormChangeHandler;
-  type?: 'text' | 'password' | 'email' | 'number';
-  placeholder?: string;
-  hint?: string;
-};
-
-type UserSelectFieldProps = {
-  label: string;
-  name: keyof User;
-  value: string;
-  onChange: UserFormChangeHandler;
-  options: Array<{ value: string; label: string }>;
-};
-
-type UserCheckboxFieldProps = {
-  label: string;
-  name: keyof User;
-  checked: boolean;
-  onChange: UserFormChangeHandler;
-  hint?: string;
-};
-
-type SharedUserFormProps = {
-  form: User;
-  loading: boolean;
-  onSubmit: (event: React.FormEvent) => void;
-  onCancel: () => void;
-  onFieldChange: UserFormChangeHandler;
-  onBackupCodesChange: (value: string) => void;
-  collapsedSections: CollapsedSectionState;
-  onToggleSection: (section: CollapsibleSectionKey) => void;
-  hoverScale: MotionScaleHandler;
-  tapScale: MotionScaleHandler;
-};
-
-const ROLE_OPTIONS = [
-  { value: 'user', label: '普通用户' },
-  { value: 'trusted', label: '信用者' },
-  { value: 'admin', label: '管理员' },
-];
-
-const ACCOUNT_STATUS_OPTIONS = [
-  { value: 'active', label: '正常' },
-  { value: 'suspended', label: '封停' },
-];
-
-const DEFAULT_USER_LIST_FILTERS: UserListFilters = {
-  keyword: '',
-  role: 'all',
-  accountStatus: 'all',
-  security: 'all',
-  ticket: 'all',
-  translation: 'all',
-  sortBy: 'createdAt',
-  sortOrder: 'desc',
-  pageSize: 20,
-};
-
-const getAdminPasskeyAuthResponse = async (username: string) => {
-  const optionsResponse = await passkeyApi.startAuthentication(username);
-  const options = optionsResponse?.data?.options;
-  if (!options) throw new Error('无法获取 Passkey 认证选项');
-  return startAuthentication({ optionsJSON: options });
-};
-
-const DEFAULT_PAGINATION: UserListPagination = {
-  page: 1,
-  pageSize: 20,
-  total: 0,
-  totalPages: 1,
-};
-
-const DEFAULT_STATS: UserListStats = {
-  total: 0,
-  users: 0,
-  admins: 0,
-  trusted: 0,
-  active: 0,
-  suspended: 0,
-  totpEnabled: 0,
-  passkeyEnabled: 0,
-  fingerprintRequired: 0,
-  withFingerprints: 0,
-  ticketViolated: 0,
-  ticketBanned: 0,
-  translationDisabled: 0,
-  translationLimited: 0,
-  totalDailyUsage: 0,
-};
-
-const ROLE_FILTER_OPTIONS: Array<{ value: UserListRoleFilter; label: string }> = [
-  { value: 'all', label: '全部角色' },
-  { value: 'admin', label: '管理员' },
-  { value: 'trusted', label: '信用者' },
-  { value: 'user', label: '普通用户' },
-];
-
-const ACCOUNT_STATUS_FILTER_OPTIONS: Array<{ value: UserListAccountStatusFilter; label: string }> = [
-  { value: 'all', label: '全部状态' },
-  { value: 'active', label: '正常' },
-  { value: 'suspended', label: '封停' },
-];
-
-const SECURITY_FILTER_OPTIONS: Array<{ value: UserListSecurityFilter; label: string }> = [
-  { value: 'all', label: '全部安全状态' },
-  { value: 'totp', label: 'TOTP' },
-  { value: 'passkey', label: 'Passkey' },
-  { value: 'fingerprintRequired', label: '需指纹上报' },
-  { value: 'noMfa', label: '未启用 MFA' },
-];
-
-const TICKET_FILTER_OPTIONS: Array<{ value: UserListTicketFilter; label: string }> = [
-  { value: 'all', label: '全部工单状态' },
-  { value: 'normal', label: '工单正常' },
-  { value: 'violated', label: '有违规记录' },
-  { value: 'banned', label: '工单封禁中' },
-];
-
-const TRANSLATION_FILTER_OPTIONS: Array<{ value: UserListTranslationFilter; label: string }> = [
-  { value: 'all', label: '全部翻译权限' },
-  { value: 'enabled', label: '翻译启用' },
-  { value: 'disabled', label: '翻译停用' },
-  { value: 'limited', label: '翻译限制中' },
-];
-
-const SORT_OPTIONS = [
-  { value: 'createdAt', label: '创建时间' },
-  { value: 'username', label: '用户名' },
-  { value: 'email', label: '邮箱' },
-  { value: 'dailyUsage', label: '今日用量' },
-  { value: 'lastLoginAt', label: '最后登录' },
-  { value: 'ticketViolationCount', label: '工单违规' },
-];
-
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
-
-const BULK_ACTION_OPTIONS: Array<{ value: BulkUserAction; label: string; confirm: string }> = [
-  { value: 'resetDailyUsage', label: '重置今日用量', confirm: '确定要重置所选用户今日用量吗？' },
-  { value: 'requireFingerprint', label: '要求指纹上报', confirm: '确定要求所选用户下次上报指纹吗？' },
-  { value: 'clearFingerprintRequirement', label: '取消指纹要求', confirm: '确定取消所选用户的指纹上报要求吗？' },
-  { value: 'suspend', label: '封停账户', confirm: '确定封停所选用户吗？' },
-  { value: 'activate', label: '恢复账户', confirm: '确定恢复所选用户账户吗？' },
-  { value: 'enableTranslation', label: '启用翻译', confirm: '确定启用所选用户的翻译页面权限吗？' },
-  { value: 'disableTranslation', label: '停用翻译', confirm: '确定停用所选用户的翻译页面权限吗？' },
-  { value: 'clearTranslationRestrictions', label: '清除翻译限制', confirm: '确定清除所选用户的翻译限制吗？' },
-  { value: 'clearTicketRestrictions', label: '清除工单限制', confirm: '确定清除所选用户的工单违规和封禁状态吗？' },
-  { value: 'resetMfa', label: '重置 MFA', confirm: '确定重置所选用户的 TOTP、备份码和 Passkey 吗？' },
-];
-
-const createDefaultCollapsedSections = (): CollapsedSectionState => ({
-  token: true,
-  security: true,
-  fingerprint: true,
-  backupCodes: true,
-});
-
-const parseBackupCodes = (value: string): string[] => (
-  value
-    .split('\n')
-    .map(item => item.trim())
-    .filter(Boolean)
-);
-
-const getLatestFingerprint = (fingerprints?: FingerprintRecord[] | null): FingerprintRecord | null => {
-  if (!Array.isArray(fingerprints) || fingerprints.length === 0) return null;
-  return fingerprints.reduce((latest, current) => (
-    Number(current.ts || 0) > Number(latest.ts || 0) ? current : latest
-  ), fingerprints[0]);
-};
-
-const getUserFingerprintCount = (user: User): number => {
-  if (typeof user.fingerprintCount === 'number') return user.fingerprintCount;
-  return Array.isArray(user.fingerprints) ? user.fingerprints.length : 0;
-};
-
-const buildFingerprintListPatch = (fingerprints: FingerprintRecord[]) => ({
-  fingerprints: undefined,
-  fingerprintCount: fingerprints.length,
-  latestFingerprint: getLatestFingerprint(fingerprints),
-});
-
-const UserFormSection: React.FC<UserFormSectionProps> = ({
-  title,
-  icon,
-  children,
-  collapsed = false,
-  onToggle,
-  contentClassName = 'px-4 pb-4 pt-2 grid grid-cols-1 md:grid-cols-2 gap-4 bg-white border-t border-gray-100',
-}) => {
-  const headerContent = (
-    <span className="flex items-center gap-2 font-semibold text-gray-700 text-sm">
-      {icon}
-      {title}
-    </span>
-  );
-
-  return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
-      {onToggle ? (
-        <button
-          type="button"
-          className="w-full flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50 transition-colors"
-          onClick={onToggle}
-        >
-          {headerContent}
-          {collapsed
-            ? <FaChevronDown className="text-gray-400 text-xs" />
-            : <FaChevronUp className="text-gray-400 text-xs" />}
-        </button>
-      ) : (
-        <div className="w-full flex items-center justify-between px-4 py-3 bg-white">
-          {headerContent}
-        </div>
-      )}
-
-      <AnimatePresence initial={false}>
-        {!collapsed && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className={contentClassName}>
-              {children}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
-
-const UserTextField: React.FC<UserTextFieldProps> = ({
-  label,
-  name,
-  value,
-  onChange,
-  type = 'text',
-  placeholder,
-  hint,
-}) => (
-  <div>
-    <label className="block text-sm font-semibold text-gray-600 mb-1">
-      {label}
-      {hint && <span className="ml-1 text-xs font-normal text-gray-400">{hint}</span>}
-    </label>
-    <input
-      type={type}
-      name={String(name)}
-      value={String(value ?? '')}
-      onChange={onChange}
-      placeholder={placeholder}
-      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all text-sm"
-    />
-  </div>
-);
-
-const UserSelectField: React.FC<UserSelectFieldProps> = ({
-  label,
-  name,
-  value,
-  onChange,
-  options,
-}) => (
-  <div>
-    <label className="block text-sm font-semibold text-gray-600 mb-1">{label}</label>
-    <select
-      name={String(name)}
-      value={value}
-      onChange={onChange}
-      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all appearance-none bg-white text-sm"
-    >
-      {options.map(option => (
-        <option key={option.value} value={option.value}>{option.label}</option>
-      ))}
-    </select>
-  </div>
-);
-
-const UserCheckboxField: React.FC<UserCheckboxFieldProps> = ({
-  label,
-  name,
-  checked,
-  onChange,
-  hint,
-}) => (
-  <div>
-    <label className="block text-sm font-semibold text-gray-600 mb-1">
-      {label}
-      {hint && <span className="ml-1 text-xs font-normal text-gray-400">{hint}</span>}
-    </label>
-    <label className="flex items-center gap-2 cursor-pointer select-none">
-      <input
-        type="checkbox"
-        name={String(name)}
-        checked={checked}
-        onChange={onChange}
-        className="w-4 h-4 rounded"
-      />
-      <span className="text-sm text-gray-600">{checked ? '是' : '否'}</span>
-    </label>
-  </div>
-);
-
-const IdentitySection: React.FC<{
-  mode: 'create' | 'edit';
-  form: User;
-  onFieldChange: UserFormChangeHandler;
-}> = ({ mode, form, onFieldChange }) => (
-  <UserFormSection
-    title="基本信息"
-    icon={<FaUser className="text-blue-500" />}
-  >
-    <UserTextField
-      label="用户名"
-      name="username"
-      value={form.username ?? ''}
-      onChange={onFieldChange}
-      placeholder="3-20位字母数字下划线"
-    />
-    <UserTextField
-      label="邮箱"
-      name="email"
-      value={form.email ?? ''}
-      onChange={onFieldChange}
-      type="email"
-      placeholder="请输入邮箱"
-    />
-    <UserTextField
-      label="密码"
-      name="password"
-      value={form.password ?? ''}
-      onChange={onFieldChange}
-      type="password"
-      placeholder={mode === 'edit' ? '留空则不修改' : '请输入初始密码'}
-      hint={mode === 'edit' ? '（留空不修改）' : undefined}
-    />
-    <UserSelectField
-      label="角色"
-      name="role"
-      value={String(form.role ?? 'user')}
-      onChange={onFieldChange}
-      options={ROLE_OPTIONS}
-    />
-    <UserTextField
-      label="头像URL"
-      name="avatarUrl"
-      value={form.avatarUrl ?? ''}
-      onChange={onFieldChange}
-      placeholder="用户头像图片URL"
-    />
-    <UserTextField
-      label="今日使用次数"
-      name="dailyUsage"
-      value={form.dailyUsage ?? 0}
-      onChange={onFieldChange}
-      type="number"
-      placeholder="0"
-    />
-    <UserTextField
-      label="最后使用日期"
-      name="lastUsageDate"
-      value={form.lastUsageDate ?? ''}
-      onChange={onFieldChange}
-      placeholder="ISO 日期字符串"
-    />
-  </UserFormSection>
-);
-
-const TokenSection: React.FC<{
-  form: User;
-  onFieldChange: UserFormChangeHandler;
-  collapsed: boolean;
-  onToggle: () => void;
-}> = ({ form, onFieldChange, collapsed, onToggle }) => (
-  <UserFormSection
-    title="Token 信息"
-    icon={<FaKey className="text-yellow-500" />}
-    collapsed={collapsed}
-    onToggle={onToggle}
-  >
-    <UserTextField
-      label="Token"
-      name="token"
-      value={form.token ?? ''}
-      onChange={onFieldChange}
-      placeholder="当前有效Token"
-    />
-    <UserTextField
-      label="Token 过期时间戳"
-      name="tokenExpiresAt"
-      value={form.tokenExpiresAt ?? 0}
-      onChange={onFieldChange}
-      type="number"
-      placeholder="毫秒时间戳，0=立即过期"
-    />
-  </UserFormSection>
-);
-
-const SecuritySection: React.FC<{
-  form: User;
-  onFieldChange: UserFormChangeHandler;
-  collapsed: boolean;
-  onToggle: () => void;
-}> = ({ form, onFieldChange, collapsed, onToggle }) => (
-  <UserFormSection
-    title="安全配置"
-    icon={<FaShieldAlt className="text-green-500" />}
-    collapsed={collapsed}
-    onToggle={onToggle}
-    contentClassName="px-4 pb-4 pt-2 bg-white border-t border-gray-100 space-y-5"
-  >
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className="md:col-span-2 text-xs font-semibold uppercase tracking-wide text-gray-400">TOTP 两步验证</div>
-      <UserCheckboxField
-        label="启用 TOTP"
-        name="totpEnabled"
-        checked={Boolean(form.totpEnabled)}
-        onChange={onFieldChange}
-      />
-      <UserTextField
-        label="TOTP 密钥"
-        name="totpSecret"
-        value={form.totpSecret ?? ''}
-        onChange={onFieldChange}
-        placeholder="Base32 密钥"
-      />
-    </div>
-
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-100 pt-5">
-      <div className="md:col-span-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Passkey 配置</div>
-      <UserCheckboxField
-        label="启用 Passkey"
-        name="passkeyEnabled"
-        checked={Boolean(form.passkeyEnabled)}
-        onChange={onFieldChange}
-      />
-      <UserCheckboxField
-        label="Passkey 已验证"
-        name="passkeyVerified"
-        checked={Boolean(form.passkeyVerified)}
-        onChange={onFieldChange}
-      />
-      <UserTextField
-        label="Pending Challenge"
-        name="pendingChallenge"
-        value={form.pendingChallenge ?? ''}
-        onChange={onFieldChange}
-        placeholder="WebAuthn 挑战"
-      />
-      <UserTextField
-        label="Current Challenge"
-        name="currentChallenge"
-        value={form.currentChallenge ?? ''}
-        onChange={onFieldChange}
-        placeholder="WebAuthn 当前挑战"
-      />
-    </div>
-  </UserFormSection>
-);
-
-const FingerprintSection: React.FC<{
-  form: User;
-  onFieldChange: UserFormChangeHandler;
-  collapsed: boolean;
-  onToggle: () => void;
-}> = ({ form, onFieldChange, collapsed, onToggle }) => (
-  <UserFormSection
-    title="指纹配置"
-    icon={<FaCog className="text-red-500" />}
-    collapsed={collapsed}
-    onToggle={onToggle}
-  >
-    <UserCheckboxField
-      label="要求上报指纹"
-      name="requireFingerprint"
-      checked={Boolean(form.requireFingerprint)}
-      onChange={onFieldChange}
-    />
-    <UserTextField
-      label="指纹预约时间戳"
-      name="requireFingerprintAt"
-      value={form.requireFingerprintAt ?? 0}
-      onChange={onFieldChange}
-      type="number"
-      placeholder="毫秒时间戳"
-    />
-    <UserCheckboxField
-      label="已关闭一次指纹请求"
-      name="fingerprintRequestDismissedOnce"
-      checked={Boolean(form.fingerprintRequestDismissedOnce)}
-      onChange={onFieldChange}
-    />
-    <UserTextField
-      label="关闭指纹请求时间戳"
-      name="fingerprintRequestDismissedAt"
-      value={form.fingerprintRequestDismissedAt ?? 0}
-      onChange={onFieldChange}
-      type="number"
-      placeholder="毫秒时间戳"
-    />
-  </UserFormSection>
-);
-
-const TicketRestrictionSection: React.FC<{
-  form: User;
-  onFieldChange: UserFormChangeHandler;
-}> = ({ form, onFieldChange }) => (
-  <UserFormSection
-    title="工单限制管理"
-    icon={<FaShieldAlt className="text-orange-500" />}
-  >
-    <UserTextField
-      label="工单违规次数"
-      name="ticketViolationCount"
-      value={form.ticketViolationCount ?? 0}
-      onChange={onFieldChange}
-      type="number"
-      placeholder="0"
-    />
-    <UserTextField
-      label="工单封禁截止"
-      name="ticketBannedUntil"
-      value={form.ticketBannedUntil ?? ''}
-      onChange={onFieldChange}
-      placeholder="ISO 日期字符串，留空解除"
-    />
-  </UserFormSection>
-);
-
-const TranslationAccessSection: React.FC<{
-  form: User;
-  onFieldChange: UserFormChangeHandler;
-}> = ({ form, onFieldChange }) => (
-  <UserFormSection
-    title="翻译权限管理"
-    icon={<FaShieldAlt className="text-cyan-500" />}
-  >
-    <UserCheckboxField
-      label="启用翻译页面"
-      name="isTranslationEnabled"
-      checked={Boolean(form.isTranslationEnabled)}
-      onChange={onFieldChange}
-    />
-    <UserTextField
-      label="翻译限制截止"
-      name="translationAccessUntil"
-      value={form.translationAccessUntil ?? ''}
-      onChange={onFieldChange}
-      placeholder="ISO 日期字符串，留空表示无限制"
-    />
-    <UserSelectField
-      label="账户状态"
-      name="accountStatus"
-      value={String(form.accountStatus ?? 'active')}
-      onChange={onFieldChange}
-      options={ACCOUNT_STATUS_OPTIONS}
-    />
-  </UserFormSection>
-);
-
-const BackupCodesSection: React.FC<{
-  backupCodes: string[];
-  collapsed: boolean;
-  onToggle: () => void;
-  onChange: (value: string) => void;
-}> = ({ backupCodes, collapsed, onToggle, onChange }) => (
-  <UserFormSection
-    title="备份码（backupCodes）"
-    icon={<FaKey className="text-orange-500" />}
-    collapsed={collapsed}
-    onToggle={onToggle}
-    contentClassName="px-4 pb-4 pt-2 bg-white border-t border-gray-100"
-  >
-    <label className="block text-sm font-semibold text-gray-600 mb-1">
-      备份码（每行一个）
-    </label>
-    <textarea
-      rows={4}
-      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all text-sm font-mono"
-      value={backupCodes.join('\n')}
-      onChange={event => onChange(event.target.value)}
-      placeholder="每行一个备份码"
-    />
-  </UserFormSection>
-);
-
-const UserFormScaffold: React.FC<{
-  title: string;
-  icon: React.ReactNode;
-  submitLabel: string;
-  loading: boolean;
-  onSubmit: (event: React.FormEvent) => void;
-  onCancel: () => void;
-  hoverScale: MotionScaleHandler;
-  tapScale: MotionScaleHandler;
-  children: React.ReactNode;
-}> = ({
-  title,
-  icon,
-  submitLabel,
-  loading,
-  onSubmit,
-  onCancel,
-  hoverScale,
-  tapScale,
-  children,
-}) => (
-  <form onSubmit={onSubmit} className="space-y-4">
-    <h4 className="text-base font-semibold text-gray-700 mb-4 flex items-center gap-2">
-      {icon}
-      {title}
-    </h4>
-
-    {children}
-
-    <div className="flex gap-3 pt-2">
-      <motion.button
-        type="submit"
-        disabled={loading}
-        className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition font-medium flex items-center gap-2 disabled:opacity-60"
-        whileHover={hoverScale(1.02)}
-        whileTap={tapScale(0.95)}
-      >
-        <FaSave />
-        {submitLabel}
-      </motion.button>
-      <motion.button
-        type="button"
-        className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition font-medium flex items-center gap-2"
-        onClick={onCancel}
-        whileHover={hoverScale(1.02)}
-        whileTap={tapScale(0.95)}
-      >
-        <FaTimes />
-        取消
-      </motion.button>
-    </div>
-  </form>
-);
-
-const CreateUserForm: React.FC<SharedUserFormProps> = ({
-  form,
-  loading,
-  onSubmit,
-  onCancel,
-  onFieldChange,
-  onBackupCodesChange,
-  collapsedSections,
-  onToggleSection,
-  hoverScale,
-  tapScale,
-}) => (
-  <UserFormScaffold
-    title="新增用户"
-    icon={<FaUserPlus className="text-blue-500" />}
-    submitLabel="添加用户"
-    loading={loading}
-    onSubmit={onSubmit}
-    onCancel={onCancel}
-    hoverScale={hoverScale}
-    tapScale={tapScale}
-  >
-    <IdentitySection mode="create" form={form} onFieldChange={onFieldChange} />
-    <TokenSection
-      form={form}
-      onFieldChange={onFieldChange}
-      collapsed={collapsedSections.token}
-      onToggle={() => onToggleSection('token')}
-    />
-    <SecuritySection
-      form={form}
-      onFieldChange={onFieldChange}
-      collapsed={collapsedSections.security}
-      onToggle={() => onToggleSection('security')}
-    />
-    <FingerprintSection
-      form={form}
-      onFieldChange={onFieldChange}
-      collapsed={collapsedSections.fingerprint}
-      onToggle={() => onToggleSection('fingerprint')}
-    />
-    <TicketRestrictionSection form={form} onFieldChange={onFieldChange} />
-    <TranslationAccessSection form={form} onFieldChange={onFieldChange} />
-    <BackupCodesSection
-      backupCodes={form.backupCodes || []}
-      collapsed={collapsedSections.backupCodes}
-      onToggle={() => onToggleSection('backupCodes')}
-      onChange={onBackupCodesChange}
-    />
-  </UserFormScaffold>
-);
-
-const EditUserForm: React.FC<SharedUserFormProps & { username: string }> = ({
-  username,
-  form,
-  loading,
-  onSubmit,
-  onCancel,
-  onFieldChange,
-  onBackupCodesChange,
-  collapsedSections,
-  onToggleSection,
-  hoverScale,
-  tapScale,
-}) => (
-  <UserFormScaffold
-    title={`编辑用户：${username}`}
-    icon={<FaEdit className="text-yellow-500" />}
-    submitLabel="保存修改"
-    loading={loading}
-    onSubmit={onSubmit}
-    onCancel={onCancel}
-    hoverScale={hoverScale}
-    tapScale={tapScale}
-  >
-    <IdentitySection mode="edit" form={form} onFieldChange={onFieldChange} />
-    <TokenSection
-      form={form}
-      onFieldChange={onFieldChange}
-      collapsed={collapsedSections.token}
-      onToggle={() => onToggleSection('token')}
-    />
-    <SecuritySection
-      form={form}
-      onFieldChange={onFieldChange}
-      collapsed={collapsedSections.security}
-      onToggle={() => onToggleSection('security')}
-    />
-    <FingerprintSection
-      form={form}
-      onFieldChange={onFieldChange}
-      collapsed={collapsedSections.fingerprint}
-      onToggle={() => onToggleSection('fingerprint')}
-    />
-    <TicketRestrictionSection form={form} onFieldChange={onFieldChange} />
-    <TranslationAccessSection form={form} onFieldChange={onFieldChange} />
-    <BackupCodesSection
-      backupCodes={form.backupCodes || []}
-      collapsed={collapsedSections.backupCodes}
-      onToggle={() => onToggleSection('backupCodes')}
-      onChange={onBackupCodesChange}
-    />
-  </UserFormScaffold>
-);
-
-// 所有可在列表中展示的字段（除 fingerprints/passkeyCredentials/backupCodes 等复杂数组）
-const TABLE_COLUMNS = [
-  { key: 'username', label: '用户名' },
-  { key: 'email', label: '邮箱' },
-  { key: 'role', label: '角色' },
-  { key: 'accountStatus', label: '账户' },
-  { key: 'createdAt', label: '创建时间' },
-  { key: 'dailyUsage', label: '用量' },
-  { key: 'security', label: '安全' },
-  { key: 'ticketStatus', label: '工单状态' },
-  { key: 'translation', label: '翻译权限' },
-];
 
 const UserManagement: React.FC = () => {
   const { user } = useAuth();
@@ -1163,8 +374,8 @@ const UserManagement: React.FC = () => {
       });
 
       applyUserListPayload(res.data, showTip);
-    } catch (e: any) {
-      setNotification({ type: 'error', message: e?.response?.data?.error || e?.message || '获取用户列表失败' });
+    } catch (e: unknown) {
+      setNotification({ type: 'error', message: getErrorMessage(e, '获取用户列表失败') });
     } finally {
       setLoading(false);
     }
@@ -1176,7 +387,7 @@ const UserManagement: React.FC = () => {
   const handleChange: UserFormChangeHandler = (e) => {
     const target = e.target as HTMLInputElement;
     const name = target.name as keyof User;
-    let value: any = target.value;
+    let value: string | number | boolean = target.value;
     if (target.type === 'checkbox') value = target.checked;
     if (target.type === 'number') value = target.value === '' ? '' : Number(target.value);
     setForm(prev => ({ ...prev, [name]: value }));
@@ -1198,7 +409,7 @@ const UserManagement: React.FC = () => {
       const method = editingUser ? 'put' : 'post';
       const url = editingUser ? `/api/admin/users/${editingUser.id}` : '/api/admin/users';
       // 构建提交数据，过滤掉空字符串密码（编辑时）
-      const submitData: any = { ...form };
+      const submitData: Partial<User> & Record<string, unknown> = { ...form };
       if (editingUser && !submitData.password) {
         delete submitData.password;
       }
@@ -1209,9 +420,9 @@ const UserManagement: React.FC = () => {
       closeForm();
       setNotification({ type: 'success', message: editingUser ? '用户信息已更新' : '用户已创建' });
       fetchUsers(true);
-    } catch (e: any) {
-      setError(e.response?.data?.error || e.message || '操作失败');
-      setNotification({ type: 'error', message: e?.response?.data?.error || e?.message || '操作失败' });
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, '操作失败'));
+      setNotification({ type: 'error', message: getErrorMessage(e, '操作失败') });
     } finally {
       setLoading(false);
     }
@@ -1226,9 +437,9 @@ const UserManagement: React.FC = () => {
       await api.delete(`/api/admin/users/${id}`);
       setNotification({ type: 'success', message: '用户已删除' });
       fetchUsers(true);
-    } catch (e: any) {
-      setError(e.response?.data?.error || e.message || '删除失败');
-      setNotification({ type: 'error', message: e?.response?.data?.error || e?.message || '删除失败' });
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, '删除失败'));
+      setNotification({ type: 'error', message: getErrorMessage(e, '删除失败') });
     } finally {
       setLoading(false);
     }
@@ -1266,9 +477,9 @@ const UserManagement: React.FC = () => {
         message: failed > 0 ? `已处理 ${processed} 个用户，${failed} 个失败` : `已处理 ${processed} 个用户`,
       });
       fetchUsers(false);
-    } catch (e: any) {
-      setError(e.response?.data?.error || e.message || '批量操作失败');
-      setNotification({ type: 'error', message: e?.response?.data?.error || e?.message || '批量操作失败' });
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, '批量操作失败'));
+      setNotification({ type: 'error', message: getErrorMessage(e, '批量操作失败') });
     } finally {
       setLoading(false);
     }
@@ -1290,8 +501,8 @@ const UserManagement: React.FC = () => {
       if (detail?.id) {
         setFpUser(detail);
       }
-    } catch (e: any) {
-      setNotification({ type: 'error', message: e?.response?.data?.error || e?.message || '获取指纹详情失败' });
+    } catch (e: unknown) {
+      setNotification({ type: 'error', message: getErrorMessage(e, '获取指纹详情失败') });
     } finally {
       setFpLoading(false);
     }
@@ -1300,7 +511,7 @@ const UserManagement: React.FC = () => {
     setRevealPasswordState({
       ...emptyRevealPasswordState,
       open: true,
-      targetUser: u,
+      targetUser: { id: u.id, username: u.username },
     });
   }, []);
 
@@ -1373,7 +584,7 @@ const UserManagement: React.FC = () => {
       let payload:
         | { method: 'password'; password: string }
         | { method: 'totp'; verificationCode: string }
-        | { method: 'passkey'; passkeyResponse: any; clientOrigin: string };
+        | { method: 'passkey'; passkeyResponse: Awaited<ReturnType<typeof getAdminPasskeyAuthResponse>>; clientOrigin: string };
 
       if (revealPasswordState.method === 'password') {
         payload = { method: 'password', password: revealPasswordState.password };
@@ -1399,8 +610,8 @@ const UserManagement: React.FC = () => {
         revealedPassword: '',
       }));
       await revealPasswordWithToken(targetUser.id, reason, verificationToken);
-    } catch (e: any) {
-      setNotification({ type: 'error', message: e?.response?.data?.error || e?.message || '二次验证或查看密码失败' });
+    } catch (e: unknown) {
+      setNotification({ type: 'error', message: getErrorMessage(e, '二次验证或查看密码失败') });
     } finally {
       setRevealPasswordState(prev => ({ ...prev, loading: false }));
     }
@@ -1909,8 +1120,8 @@ const UserManagement: React.FC = () => {
                                       await api.post(`/api/admin/users/${u.id}/fingerprint/require`, { require: true });
                                       setFpRequireMap(prev => ({ ...prev, [u.id]: Date.now() }));
                                       setNotification({ type: 'success', message: '已再次请求该用户下次上报指纹' });
-                                    } catch (e: any) {
-                                      setNotification({ type: 'error', message: e?.response?.data?.error || e?.message || '请求失败' });
+                                    } catch (e: unknown) {
+                                      setNotification({ type: 'error', message: getErrorMessage(e, '请求失败') });
                                     }
                                   }}
                                   whileHover={hoverScale(1.02)}
@@ -1927,8 +1138,8 @@ const UserManagement: React.FC = () => {
                                       await api.post(`/api/admin/users/${u.id}/fingerprint/require`, { require: true });
                                       setFpRequireMap(prev => ({ ...prev, [u.id]: Date.now() }));
                                       setNotification({ type: 'success', message: '已请求该用户下次上报指纹' });
-                                    } catch (e: any) {
-                                      setNotification({ type: 'error', message: e?.response?.data?.error || e?.message || '请求失败' });
+                                    } catch (e: unknown) {
+                                      setNotification({ type: 'error', message: getErrorMessage(e, '请求失败') });
                                     }
                                   }}
                                   whileHover={hoverScale(1.02)}
@@ -2033,126 +1244,15 @@ const UserManagement: React.FC = () => {
       {ReactDOM.createPortal(
         <AnimatePresence>
           {revealPasswordState.open && revealPasswordState.targetUser && (
-            <motion.div
-              className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <motion.div
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6"
-                initial={{ scale: 0.95, y: 20, opacity: 0 }}
-                animate={{ scale: 1, y: 0, opacity: 1 }}
-                exit={{ scale: 0.95, y: 20, opacity: 0 }}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800">
-                    查看密码 - {revealPasswordState.targetUser.username}
-                  </h3>
-                  <motion.button
-                    className="text-gray-500 hover:text-gray-700"
-                    onClick={closeRevealPassword}
-                    whileHover={hoverScale(1.02)}
-                    whileTap={tapScale(0.95)}
-                  >
-                    ✕
-                  </motion.button>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1">查看原因</label>
-                    <textarea
-                      rows={3}
-                      value={revealPasswordState.reason}
-                      onChange={e => setRevealPasswordState(prev => ({ ...prev, reason: e.target.value }))}
-                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all text-sm"
-                      placeholder="请输入查看原因（4-200字符）"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-600 mb-1">二次验证方式</label>
-                    <select
-                      value={revealPasswordState.method}
-                      onChange={e => setRevealPasswordState(prev => ({
-                        ...prev,
-                        method: e.target.value as RevealPasswordMethod,
-                        password: '',
-                        verificationCode: '',
-                        verificationToken: '',
-                        revealedPassword: '',
-                      }))}
-                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all text-sm"
-                    >
-                      <option value="password">管理员密码</option>
-                      <option value="totp">TOTP 验证码</option>
-                      <option value="passkey">Passkey</option>
-                    </select>
-                  </div>
-
-                  {revealPasswordState.method === 'password' ? (
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-600 mb-1">管理员密码</label>
-                      <input
-                        type="password"
-                        value={revealPasswordState.password}
-                        onChange={e => setRevealPasswordState(prev => ({ ...prev, password: e.target.value }))}
-                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all text-sm"
-                        placeholder="请输入当前管理员密码"
-                      />
-                    </div>
-                  ) : revealPasswordState.method === 'totp' ? (
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-600 mb-1">TOTP 验证码</label>
-                      <input
-                        type="text"
-                        value={revealPasswordState.verificationCode}
-                        onChange={e => setRevealPasswordState(prev => ({ ...prev, verificationCode: e.target.value }))}
-                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all text-sm"
-                        placeholder="请输入 6 位验证码"
-                      />
-                    </div>
-                  ) : (
-                    <div className="p-3 rounded-lg border border-emerald-200 bg-emerald-50 text-sm text-emerald-700">
-                      Passkey 将使用当前管理员账号 {user?.username || ''} 进行验证
-                    </div>
-                  )}
-
-                  {revealPasswordState.revealedPassword && (
-                    <div className="p-3 rounded-lg border border-indigo-200 bg-indigo-50">
-                      <div className="text-sm font-semibold text-indigo-700 mb-1">明文密码</div>
-                      <div className="font-mono text-sm break-all text-gray-800">
-                        {revealPasswordState.revealedPassword}
-                      </div>
-                      <div className="mt-2 text-xs text-indigo-600">30 秒后自动隐藏</div>
-                    </div>
-                  )}
-
-                  <div className="flex gap-3 pt-2">
-                    <motion.button
-                      type="button"
-                      className="px-4 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition font-medium disabled:opacity-60"
-                      onClick={handleVerifyRevealPassword}
-                      disabled={revealPasswordState.loading}
-                      whileHover={hoverScale(1.02)}
-                      whileTap={tapScale(0.95)}
-                    >
-                      {revealPasswordState.loading ? '处理中...' : revealPasswordState.revealedPassword ? '重新验证并查看' : '验证并查看密码'}
-                    </motion.button>
-                    <motion.button
-                      type="button"
-                      className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition font-medium"
-                      onClick={closeRevealPassword}
-                      whileHover={hoverScale(1.02)}
-                      whileTap={tapScale(0.95)}
-                    >
-                      关闭
-                    </motion.button>
-                  </div>
-                </div>
-              </motion.div>
-            </motion.div>
+            <RevealPasswordModal
+              state={revealPasswordState}
+              adminUsername={user?.username}
+              hoverScale={hoverScale}
+              tapScale={tapScale}
+              onClose={closeRevealPassword}
+              onChange={(patch: Partial<ModalRevealPasswordState>) => setRevealPasswordState(prev => ({ ...prev, ...patch }))}
+              onVerify={handleVerifyRevealPassword}
+            />
           )}
         </AnimatePresence>,
         document.body
@@ -2185,8 +1285,8 @@ const UserManagement: React.FC = () => {
                           await api.post(`/api/admin/users/${fpUser.id}/fingerprint/require`, { require: true });
                           setFpRequireMap(prev => ({ ...prev, [fpUser.id]: Date.now() }));
                           setNotification({ type: 'success', message: '已请求该用户下次上报指纹' });
-                        } catch (e: any) {
-                          setNotification({ type: 'error', message: e?.response?.data?.error || e?.message || '请求失败' });
+                        } catch (e: unknown) {
+                          setNotification({ type: 'error', message: getErrorMessage(e, '请求失败') });
                         }
                       }}
                       whileHover={hoverScale(1.02)}
@@ -2203,8 +1303,8 @@ const UserManagement: React.FC = () => {
                           setFpUser({ ...fpUser, fingerprints: next });
                           setUsers(prev => prev.map(u => u.id === fpUser.id ? { ...u, ...buildFingerprintListPatch(next) } : u));
                           setNotification({ type: 'success', message: '已清空全部指纹记录' });
-                        } catch (e: any) {
-                          setNotification({ type: 'error', message: e?.response?.data?.error || e?.message || '清空指纹失败' });
+                        } catch (e: unknown) {
+                          setNotification({ type: 'error', message: getErrorMessage(e, '清空指纹失败') });
                         }
                       }}
                       whileHover={hoverScale(1.02)}
@@ -2276,8 +1376,8 @@ const UserManagement: React.FC = () => {
                                 setFpUser({ ...fpUser, fingerprints: next });
                                 setUsers(prev => prev.map(u => u.id === fpUser.id ? { ...u, ...buildFingerprintListPatch(next) } : u));
                                 setNotification({ type: 'success', message: '已删除指纹记录' });
-                              } catch (e: any) {
-                                setNotification({ type: 'error', message: e?.response?.data?.error || e?.message || '删除指纹失败' });
+                              } catch (e: unknown) {
+                                setNotification({ type: 'error', message: getErrorMessage(e, '删除指纹失败') });
                               }
                             }}
                             whileHover={hoverScale(1.02)}
@@ -2305,8 +1405,8 @@ const UserManagement: React.FC = () => {
                           const ts = Number(r?.data?.requireFingerprintAt || Date.now());
                           setFpRequireMap(prev => ({ ...prev, [fpUser.id]: ts }));
                           setNotification({ type: 'success', message: `已再次请求该用户下次上报指纹` });
-                        } catch (e: any) {
-                          setNotification({ type: 'error', message: e?.response?.data?.error || e?.message || '请求失败' });
+                        } catch (e: unknown) {
+                          setNotification({ type: 'error', message: getErrorMessage(e, '请求失败') });
                         }
                       }}
                       whileHover={hoverScale(1.02)}
@@ -2324,8 +1424,8 @@ const UserManagement: React.FC = () => {
                           const ts = Number(r?.data?.requireFingerprintAt || Date.now());
                           setFpRequireMap(prev => ({ ...prev, [fpUser.id]: ts }));
                           setNotification({ type: 'success', message: `已请求该用户下次上报指纹` });
-                        } catch (e: any) {
-                          setNotification({ type: 'error', message: e?.response?.data?.error || e?.message || '请求失败' });
+                        } catch (e: unknown) {
+                          setNotification({ type: 'error', message: getErrorMessage(e, '请求失败') });
                         }
                       }}
                       whileHover={hoverScale(1.02)}

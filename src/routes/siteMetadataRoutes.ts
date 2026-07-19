@@ -11,6 +11,10 @@ export const sendFaviconIfExists: RequestHandler = (_req, res) => {
 export const faviconRoutes = Router();
 faviconRoutes.get("/", sendFaviconIfExists);
 
+/**
+ * Digital Asset Links for Android App Links / passkeys.
+ * Built by getNexaiAssetLinksStatements() (defaults: com.chloemlla.synapse.mobile + com.synapse.mobile + com.chloemlla.nexai).
+ */
 export const assetLinksRoutes = Router();
 assetLinksRoutes.get("/", (_req, res) => {
   res.setHeader("Cache-Control", "public, max-age=300");

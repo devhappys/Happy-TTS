@@ -1,5 +1,7 @@
 import crypto from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
+import { config } from "../config/config";
+import { getTokenFromRequest } from "../utils/authCookie";
 import { getNonceStore } from "../services/nonceStore";
 import logger from "../utils/logger";
 
@@ -18,7 +20,7 @@ import logger from "../utils/logger";
  */
 
 function getConfiguredSigningSecret(): string | null {
-  const secret = process.env.SIGN_SECRET_KEY?.trim();
+  const secret = config.signSecretKey?.trim() || process.env.SIGN_SECRET_KEY?.trim();
   return secret ? secret : null;
 }
 
@@ -30,8 +32,8 @@ function getBearerToken(req: Request): string | null {
 }
 
 function getSigningKeys(req: Request): string[] {
-  const candidates = [getConfiguredSigningSecret(), getBearerToken(req)].filter((value): value is string =>
-    Boolean(value),
+  const candidates = [getConfiguredSigningSecret(), getBearerToken(req), getTokenFromRequest(req)].filter(
+    (value): value is string => Boolean(value),
   );
   return [...new Set(candidates)];
 }
@@ -70,7 +72,14 @@ export function replayProtection(options: ReplayProtectionOptions = {}) {
     const signature = req.headers["x-signature"] as string | undefined;
 
     // --- 1. 参数完整性 ---
+    // Cookie-authenticated browser sessions may omit JS HMAC headers.
+    // Bearer/API clients still must sign when they are not using cookie auth exclusively.
     if (!timestamp || !nonce || !signature) {
+      const sessionToken = getTokenFromRequest(req);
+      const hasBearer = Boolean(req.headers.authorization?.startsWith("Bearer "));
+      if (sessionToken && !hasBearer) {
+        return next();
+      }
       logger.warn("[ReplayProtection] 缺少防重放头", {
         ip: req.ip,
         path: req.path,

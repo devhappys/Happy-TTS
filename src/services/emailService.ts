@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import dayjs from "dayjs";
-import { marked } from "marked";
 import { Resend } from "resend";
 import { logger } from "./logger";
 import { mongoose } from "./mongoService";
@@ -21,6 +20,27 @@ const EmailQuotaModel = mongoose.models.EmailQuota || mongoose.model("EmailQuota
 
 const FALLBACK_RESEND_DOMAIN = process.env.RESEND_DOMAIN || "chloemlla.com";
 const EMAIL_QUOTA_FILE = path.join(__dirname, "../../data/email_quota.json");
+
+
+type MarkedLike = {
+  parse?: (markdown: string) => string | Promise<string>;
+  (markdown: string): string | Promise<string>;
+};
+
+let markedModulePromise: Promise<MarkedLike> | null = null;
+
+async function loadMarked(): Promise<MarkedLike> {
+  if (!markedModulePromise) {
+    markedModulePromise = import("marked").then((mod: any) => (mod.marked ?? mod.default ?? mod) as MarkedLike);
+  }
+  return markedModulePromise;
+}
+
+async function renderMarkdown(markdown: string): Promise<string> {
+  const marked = await loadMarked();
+  const parsed = typeof marked.parse === "function" ? marked.parse(markdown || "") : marked(markdown || "");
+  return await Promise.resolve(parsed);
+}
 
 export const DEFAULT_EMAIL_FROM = `noreply@${FALLBACK_RESEND_DOMAIN}`;
 
@@ -590,13 +610,7 @@ export class EmailService {
     subject: string;
     markdown: string;
   }): Promise<EmailResponse> {
-    let html: string;
-    const parsed = typeof marked.parse === "function" ? marked.parse(markdown || "") : marked(markdown || "");
-    if (parsed instanceof Promise) {
-      html = await parsed;
-    } else {
-      html = parsed as string;
-    }
+    const html = await renderMarkdown(markdown || "");
     return EmailService.sendEmail({ from, to, subject, html, text: markdown });
   }
 

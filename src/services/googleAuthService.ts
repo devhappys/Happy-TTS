@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { OAuth2Client } from "google-auth-library";
 import { config } from "../config/config";
 import logger from "../utils/logger";
 import { signLoginToken } from "../utils/authToken";
@@ -12,6 +13,8 @@ export interface GoogleAuthConfigSummary {
   clientIdConfigured: boolean;
   clientId: string;
 }
+
+export type GoogleAuthConfigTarget = "web" | "synapse-android";
 
 export interface GoogleAuthPayload {
   token: string;
@@ -135,7 +138,8 @@ function toAuthPayload(user: User, isNewUser: boolean): GoogleAuthPayload {
 }
 
 export async function verifyGoogleIdToken(idToken: string): Promise<GoogleProfile> {
-  if (!isGoogleAuthEnabled()) {
+  const clientIds = getAcceptedGoogleClientIds();
+  if (clientIds.length === 0) {
     throw new Error("Google 登录未配置");
   }
 
@@ -144,18 +148,10 @@ export async function verifyGoogleIdToken(idToken: string): Promise<GoogleProfil
     throw new Error("缺少 Google idToken");
   }
 
-  let OAuth2Client: any;
-  try {
-    ({ OAuth2Client } = await import("google-auth-library"));
-  } catch (error) {
-    logger.error("[Google Auth] Failed to load google-auth-library", error);
-    throw new Error("Google 登录依赖不可用");
-  }
-
-  const client = new OAuth2Client(config.googleAuth.clientId);
+  const client = new OAuth2Client(clientIds[0]);
   const ticket = await client.verifyIdToken({
     idToken: trimmedToken,
-    audience: config.googleAuth.clientId,
+    audience: clientIds.length === 1 ? clientIds[0] : clientIds,
   });
   const payload = ticket.getPayload();
 
@@ -269,16 +265,31 @@ async function upsertGoogleUser(profile: GoogleProfile): Promise<{
   return { user: finalizedUser, isNewUser: true };
 }
 
-export function getGoogleAuthConfigSummary(): GoogleAuthConfigSummary {
+function getAcceptedGoogleClientIds(): string[] {
+  return Array.from(
+    new Set(
+      [config.googleAuth.clientId, config.synapseAndroid.googleClientId]
+        .map((clientId) => clientId.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+export function getGoogleAuthConfigSummary(target: GoogleAuthConfigTarget = "web"): GoogleAuthConfigSummary {
+  const clientId =
+    target === "synapse-android"
+      ? config.synapseAndroid.googleClientId || config.googleAuth.clientId
+      : config.googleAuth.clientId;
+
   return {
-    enabled: isGoogleAuthEnabled(),
-    clientIdConfigured: Boolean(config.googleAuth.clientId),
-    clientId: config.googleAuth.clientId,
+    enabled: Boolean(clientId),
+    clientIdConfigured: Boolean(clientId),
+    clientId,
   };
 }
 
 export function isGoogleAuthEnabled(): boolean {
-  return Boolean(config.googleAuth.clientId);
+  return getAcceptedGoogleClientIds().length > 0;
 }
 
 export async function authenticateGoogleUser(params: {

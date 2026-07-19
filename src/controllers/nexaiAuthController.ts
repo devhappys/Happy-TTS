@@ -4,6 +4,7 @@
  */
 import type { Request, Response } from "express";
 import { config } from "../config/config";
+import { NexaiUserModel } from "../models/nexaiUserModel";
 import { NexaiAuthService } from "../services/nexaiAuthService";
 import logger from "../utils/logger";
 
@@ -602,11 +603,12 @@ export class NexaiAuthController {
       // 由于 options 阶段我们已把 challenge 保存到特定的用户上，
       // 此时应该使用 identifier 获取 userID（避免安全风险，建议传 userID 此处简化）
       let userId: string;
-      // 短路查找
-      const safeValue = identifier.replace(/[^a-zA-Z0-9_@.-]/g, "").toLowerCase();
-      const { NexaiUserModel } = await import("../models/nexaiUserModel");
+      // Lookup by email (lowercased) or username (case-sensitive original sanitized only).
+      const raw = String(identifier).trim();
+      const emailCandidate = raw.toLowerCase();
+      const usernameCandidate = raw.replace(/[^a-zA-Z0-9_-]/g, "");
       const user = await NexaiUserModel.findOne({
-        $or: [{ email: safeValue }, { username: safeValue }],
+        $or: [{ email: emailCandidate }, { username: usernameCandidate }],
       }).lean();
 
       if (!user) throw Object.assign(new Error("用户不存在"), { statusCode: 404 });
@@ -632,6 +634,62 @@ export class NexaiAuthController {
         response.code = error.code;
       }
       res.status(error.statusCode || 500).json(response);
+    }
+  }
+
+  /**
+   * POST /api/nexai/auth/passkey/login/discoverable/options
+   * 获取 Discoverable（无用户名）Passkey 登录选项
+   */
+  static async generateDiscoverablePasskeyAuthenticationOptions(req: Request, res: Response) {
+    try {
+      void req;
+      const options = await NexaiAuthService.generateDiscoverablePasskeyAuthenticationOptions();
+      res.json({
+        success: true,
+        data: options,
+      });
+    } catch (error: any) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: error.message || "获取 Discoverable 登录选项失败",
+      });
+    }
+  }
+
+  /**
+   * POST /api/nexai/auth/passkey/login/discoverable/verify
+   * 验证 Discoverable Passkey 登录
+   * Body: { response: any, challenge: string }
+   */
+  static async verifyDiscoverablePasskeyAuthentication(req: Request, res: Response) {
+    try {
+      const { response, challenge } = req.body || {};
+      if (!response || !challenge) {
+        return res.status(400).json({ success: false, error: "参数不完整" });
+      }
+
+      const ip = req.ip || (req.headers["x-real-ip"] as string) || "unknown";
+      const result = await NexaiAuthService.verifyDiscoverablePasskeyAuthentication(response, challenge, ip);
+
+      res.json({
+        success: true,
+        message: "Passkey 登录成功",
+        data: {
+          user: sanitizeUser(result.user),
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+        },
+      });
+    } catch (error: any) {
+      const body: any = {
+        success: false,
+        error: error.message || "登录验证失败",
+      };
+      if (error.code) {
+        body.code = error.code;
+      }
+      res.status(error.statusCode || 500).json(body);
     }
   }
 

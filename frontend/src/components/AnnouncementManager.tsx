@@ -5,7 +5,8 @@ import MarkdownRenderer from './MarkdownRenderer';
 import getApiBaseUrl from '../api';
 import { useNotification } from './Notification';
 import { useAuth } from '../hooks/useAuth';
-import { 
+import { getAuthToken } from '../utils/authSession';
+import {
   FaBullhorn, 
   FaEdit, 
   FaSave, 
@@ -20,7 +21,7 @@ import {
 const API_URL = getApiBaseUrl() + '/api/admin/announcement';
 
 function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem('token');
+  const token = getAuthToken();
   if (token) return { Authorization: `Bearer ${token}` };
   return {};
 }

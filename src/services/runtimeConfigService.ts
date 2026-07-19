@@ -9,9 +9,14 @@ import {
   type LinuxDoRuntimeConfig,
   type NexaiRuntimeConfig,
   type RuntimeConfigDefaults,
+  type SynapseAndroidRuntimeConfig,
   type TtsRuntimeConfig,
 } from "../config/runtimeConfigDefaults";
 import { type RuntimeConfigKey, RuntimeConfigModel } from "../models/runtimeConfigModel";
+import {
+  assertStrongGenerationCode,
+  normalizeGenerationCode,
+} from "../utils/generationCodePolicy";
 import logger from "../utils/logger";
 import { normalizeScamalyticsUser, validateScamalyticsUser } from "../utils/scamalytics";
 import { mongoose } from "./mongoService";
@@ -178,6 +183,19 @@ function normalizeStoredIpqsConfig(value: unknown, defaults = runtimeConfigDefau
 function normalizeStoredLinuxDoConfig(value: unknown, defaults = runtimeConfigDefaults.linuxdo): LinuxDoRuntimeConfig {
   const raw = asObject(value);
 
+  const normalizeLinuxDoFrontendCallbackUrl = (candidate: unknown, fallback: string): string => {
+    const normalized = normalizeUrl(candidate, fallback);
+    try {
+      const url = new URL(normalized);
+      url.pathname = "/auth/linuxdo/callback";
+      url.search = "";
+      url.hash = "";
+      return url.toString();
+    } catch {
+      return fallback;
+    }
+  };
+
   return {
     clientId: normalizeOptionalString(raw.clientId, defaults.clientId, 512),
     clientSecret: normalizeOptionalString(raw.clientSecret, defaults.clientSecret, 1024),
@@ -188,34 +206,91 @@ function normalizeStoredLinuxDoConfig(value: unknown, defaults = runtimeConfigDe
     userEndpoint: normalizeUrl(raw.userEndpoint, defaults.userEndpoint),
     forumBaseUrl: normalizeUrl(raw.forumBaseUrl, defaults.forumBaseUrl),
     callbackUrl: normalizeUrl(raw.callbackUrl, defaults.callbackUrl),
-    frontendCallbackUrl: normalizeUrl(raw.frontendCallbackUrl, defaults.frontendCallbackUrl),
+    frontendCallbackUrl: normalizeLinuxDoFrontendCallbackUrl(
+      raw.frontendCallbackUrl,
+      defaults.frontendCallbackUrl,
+    ),
   };
 }
 
+/** Google Identity Services requires a Web application OAuth client ID. */
+export const GOOGLE_WEB_CLIENT_ID_PATTERN = /^[\w-]+\.apps\.googleusercontent\.com$/i;
+
+export function isValidGoogleWebClientId(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  return GOOGLE_WEB_CLIENT_ID_PATTERN.test(trimmed);
+}
+
+/**
+ * Extract client_id from admin form payloads or Google Cloud Console OAuth JSON.
+ * Preference order follows GSI Web requirements:
+ * 1) web.client_id (Web application)
+ * 2) top-level clientId / client_id
+ * 3) installed.client_id (Desktop) — last resort for diagnostics only
+ */
 export function extractGoogleAuthClientId(value: unknown): string {
   const raw = asObject(value);
   const web = asObject(raw.web);
   const installed = asObject(raw.installed);
 
-  return normalizeOptionalString(
-    raw.clientId ?? raw.client_id ?? web.clientId ?? web.client_id ?? installed.clientId ?? installed.client_id,
-    "",
-    512,
-  );
+  const webClientId = normalizeOptionalString(web.clientId ?? web.client_id, "", 512);
+  if (webClientId) {
+    return webClientId;
+  }
+
+  const plainClientId = normalizeOptionalString(raw.clientId ?? raw.client_id, "", 512);
+  if (plainClientId) {
+    return plainClientId;
+  }
+
+  return normalizeOptionalString(installed.clientId ?? installed.client_id, "", 512);
 }
 
 export function looksLikeGoogleOAuthClientJson(value: unknown): boolean {
   const raw = asObject(value);
 
-  return hasOwnKey(raw, "web") || hasOwnKey(raw, "installed") || hasOwnKey(raw, "client_id");
+  return hasOwnKey(raw, "web") || hasOwnKey(raw, "installed") || hasOwnKey(raw, "client_id") || hasOwnKey(raw, "clientId");
+}
+
+/**
+ * Desktop/Installed-only OAuth client JSON is incompatible with GSI Web Sign-In.
+ * Official guide: create a "Web application" OAuth client.
+ */
+export function isInstalledOnlyGoogleOAuthClientJson(value: unknown): boolean {
+  const raw = asObject(value);
+  if (!hasOwnKey(raw, "installed")) {
+    return false;
+  }
+  if (hasOwnKey(raw, "web")) {
+    return false;
+  }
+
+  const plainClientId = normalizeOptionalString(raw.clientId ?? raw.client_id, "", 512);
+  return !plainClientId;
+}
+
+export function assertGoogleAuthClientIdForGsi(clientId: string, source: "json" | "form" = "form"): string {
+  const normalized = clientId.trim();
+  if (!normalized) {
+    throw new Error(source === "json" ? "Google OAuth JSON 中缺少 client_id" : "Google Client ID 不能为空");
+  }
+  if (!isValidGoogleWebClientId(normalized)) {
+    throw new Error(
+      "Google Client ID 格式无效。GSI Web 登录需要形如 xxx.apps.googleusercontent.com 的 Web application Client ID。",
+    );
+  }
+  return normalized;
 }
 
 function normalizeStoredGoogleAuthConfig(
   value: unknown,
   defaults = runtimeConfigDefaults.googleAuth,
 ): GoogleAuthRuntimeConfig {
+  const extracted = extractGoogleAuthClientId(value);
+  const candidate = extracted || defaults.clientId;
   return {
-    clientId: extractGoogleAuthClientId(value) || defaults.clientId,
+    clientId: isValidGoogleWebClientId(candidate) ? candidate.trim() : "",
   };
 }
 
@@ -250,9 +325,26 @@ function normalizeStoredNexaiConfig(value: unknown, defaults = runtimeConfigDefa
 
 function normalizeStoredTtsConfig(value: unknown, defaults = runtimeConfigDefaults.tts): TtsRuntimeConfig {
   const raw = asObject(value);
+  // Prefer stored value; fall back to env/runtime default. Strength is enforced on write
+  // (setTtsSetting) and env parse — weak legacy stored values are treated as unset so the
+  // shared-code gate stays closed rather than accepting a predictable code.
+  const candidate = normalizeGenerationCode(
+    typeof raw.generationCode === "string" && raw.generationCode.trim().length > 0
+      ? raw.generationCode
+      : defaults.generationCode,
+  );
+  let generationCode = "";
+  if (candidate) {
+    try {
+      generationCode = assertStrongGenerationCode(candidate, "generationCode");
+    } catch {
+      logger.warn("[RuntimeConfig] Ignoring weak TTS generation code from storage/defaults");
+      generationCode = "";
+    }
+  }
 
   return {
-    generationCode: normalizeString(raw.generationCode, defaults.generationCode, 256),
+    generationCode,
   };
 }
 
@@ -300,6 +392,68 @@ async function readRuntimeConfigDoc(
   };
 }
 
+
+function normalizeSha256FingerprintList(value: unknown, fallback: string[]): string[] {
+  const items: string[] = [];
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      if (typeof entry === "string" && entry.trim()) {
+        items.push(entry.trim());
+      }
+    }
+  } else if (typeof value === "string" && value.trim()) {
+    for (const entry of value.split(/[\n,]+/)) {
+      if (entry.trim()) items.push(entry.trim());
+    }
+  }
+
+  const normalized = Array.from(
+    new Set(
+      items
+        .map((item) => {
+          const trimmed = item.trim();
+          if (!trimmed) return "";
+          if (trimmed.includes(":")) return trimmed.toUpperCase();
+          const compact = trimmed.replace(/[^0-9a-fA-F]/g, "");
+          if (compact.length === 64 && /^[0-9a-fA-F]+$/.test(compact)) {
+            return compact
+              .toUpperCase()
+              .match(/.{1,2}/g)!
+              .join(":");
+          }
+          return trimmed.toUpperCase();
+        })
+        .filter(Boolean),
+    ),
+  );
+
+  return normalized.length > 0 ? normalized : [...fallback];
+}
+
+function normalizeStoredSynapseAndroidConfig(
+  value: unknown,
+  defaults = runtimeConfigDefaults.synapseAndroid,
+): SynapseAndroidRuntimeConfig {
+  const obj = asObject(value);
+  const packageName = normalizeOptionalString(obj.packageName, defaults.packageName, 200) || defaults.packageName;
+  const googleClientId = normalizeOptionalString(
+    obj.googleClientId ?? obj.clientId,
+    defaults.googleClientId,
+    256,
+  );
+  const disabled =
+    obj.disabled === true || obj.disabled === "true" || obj.disabled === 1 || obj.disabled === "1";
+
+  return {
+    packageName,
+    sha256CertFingerprints: normalizeSha256FingerprintList(
+      obj.sha256CertFingerprints ?? obj.fingerprints,
+      defaults.sha256CertFingerprints,
+    ),
+    googleClientId,
+    disabled: Boolean(disabled),
+  };
+}
 function applyCacheForKey(key: RuntimeConfigKey, value: unknown): void {
   if (key === "IPQS") {
     runtimeConfigCache.ipqs = normalizeStoredIpqsConfig(value);
@@ -336,6 +490,11 @@ function applyCacheForKey(key: RuntimeConfigKey, value: unknown): void {
     return;
   }
 
+  if (key === "SYNAPSE_ANDROID") {
+    runtimeConfigCache.synapseAndroid = normalizeStoredSynapseAndroidConfig(value);
+    return;
+  }
+
   runtimeConfigCache.nexai = normalizeStoredNexaiConfig(value);
 }
 
@@ -367,6 +526,9 @@ export class RuntimeConfigService {
     if (!loadedKeys.has("ADMIN_SECURITY")) {
       runtimeConfigCache.adminSecurity = cloneRuntimeConfigDefaults(defaults).adminSecurity;
     }
+    if (!loadedKeys.has("SYNAPSE_ANDROID")) {
+      runtimeConfigCache.synapseAndroid = cloneRuntimeConfigDefaults(defaults).synapseAndroid;
+    }
   }
 
   static getCachedConfig(): RuntimeConfigDefaults {
@@ -378,7 +540,7 @@ export class RuntimeConfigService {
     if (initialized && !force) return;
 
     const docs = await RuntimeConfigModel.find({
-      key: { $in: ["IPQS", "LINUXDO", "GOOGLE_AUTH", "DEEPLX", "NEXAI", "TTS", "EMAIL", "ADMIN_SECURITY"] },
+      key: { $in: ["IPQS", "LINUXDO", "GOOGLE_AUTH", "DEEPLX", "NEXAI", "TTS", "EMAIL", "ADMIN_SECURITY", "SYNAPSE_ANDROID"] },
     })
       .lean()
       .exec();
@@ -397,6 +559,7 @@ export class RuntimeConfigService {
       nextCache.tts = runtimeConfigCache.tts;
       nextCache.email = runtimeConfigCache.email;
       nextCache.adminSecurity = runtimeConfigCache.adminSecurity;
+      nextCache.synapseAndroid = runtimeConfigCache.synapseAndroid;
       loadedKeys.add(doc.key as RuntimeConfigKey);
     }
 
@@ -539,7 +702,10 @@ export class RuntimeConfigService {
       userEndpoint: normalizeUrl(input.userEndpoint, current.userEndpoint),
       forumBaseUrl: normalizeUrl(input.forumBaseUrl, current.forumBaseUrl),
       callbackUrl: normalizeUrl(input.callbackUrl, current.callbackUrl),
-      frontendCallbackUrl: normalizeUrl(input.frontendCallbackUrl, current.frontendCallbackUrl),
+      frontendCallbackUrl: normalizeStoredLinuxDoConfig({
+        ...current,
+        frontendCallbackUrl: input.frontendCallbackUrl ?? current.frontendCallbackUrl,
+      }).frontendCallbackUrl,
     };
 
     const now = new Date();
@@ -587,14 +753,25 @@ export class RuntimeConfigService {
   ): Promise<{ updatedAt: string }> {
     const currentDoc = await readRuntimeConfigDoc("GOOGLE_AUTH");
     const current = currentDoc ? normalizeStoredGoogleAuthConfig(currentDoc.value) : runtimeConfigCache.googleAuth;
-    const extractedClientId = extractGoogleAuthClientId(input);
-
-    if (looksLikeGoogleOAuthClientJson(input) && !extractedClientId) {
-      throw new Error("Google OAuth JSON 中缺少 client_id");
+    if (isInstalledOnlyGoogleOAuthClientJson(input)) {
+      throw new Error(
+        "当前 JSON 是 Desktop/Installed 客户端。Google Identity Services (GSI) 需要「Web application」类型的 OAuth 客户端：在 Google Cloud Console → API 和服务 → 凭据 → 创建 OAuth 客户端 ID → 应用类型选择「Web 应用」，配置 Authorized JavaScript origins 后下载 web 类型 JSON 再导入。",
+      );
     }
 
+    const extractedClientId = extractGoogleAuthClientId(input);
+    if (looksLikeGoogleOAuthClientJson(input) || extractedClientId) {
+      if (!extractedClientId) {
+        throw new Error("Google OAuth JSON 中缺少 client_id");
+      }
+      assertGoogleAuthClientIdForGsi(extractedClientId, looksLikeGoogleOAuthClientJson(input) ? "json" : "form");
+    }
+
+    const nextClientId = extractedClientId
+      ? assertGoogleAuthClientIdForGsi(extractedClientId, "form")
+      : current.clientId;
     const nextConfig: GoogleAuthRuntimeConfig = {
-      clientId: extractedClientId || current.clientId,
+      clientId: nextClientId,
     };
 
     const now = new Date();
@@ -615,6 +792,100 @@ export class RuntimeConfigService {
     await RuntimeConfigModel.deleteOne({ key: "GOOGLE_AUTH" }).exec();
     runtimeConfigCache.googleAuth = cloneRuntimeConfigDefaults(runtimeConfigDefaults).googleAuth;
     loadedKeys.delete("GOOGLE_AUTH");
+  }
+
+  static async getSynapseAndroidSetting(): Promise<{
+    setting: {
+      config: SynapseAndroidRuntimeConfig;
+      updatedAt?: string;
+      assetlinksPath: string;
+    };
+  }> {
+    const doc = await readRuntimeConfigDoc("SYNAPSE_ANDROID");
+    const config = doc ? normalizeStoredSynapseAndroidConfig(doc.value) : runtimeConfigDefaults.synapseAndroid;
+    runtimeConfigCache.synapseAndroid = config;
+
+    return {
+      setting: {
+        config: {
+          packageName: config.packageName,
+          sha256CertFingerprints: [...config.sha256CertFingerprints],
+          googleClientId: config.googleClientId,
+          disabled: config.disabled,
+        },
+        updatedAt: doc?.updatedAt?.toISOString(),
+        assetlinksPath: "/.well-known/assetlinks.json",
+      },
+    };
+  }
+
+  static async setSynapseAndroidSetting(
+    input: Partial<SynapseAndroidRuntimeConfig> | Record<string, unknown>,
+  ): Promise<{ updatedAt: string }> {
+    const currentDoc = await readRuntimeConfigDoc("SYNAPSE_ANDROID");
+    const current = currentDoc
+      ? normalizeStoredSynapseAndroidConfig(currentDoc.value)
+      : runtimeConfigCache.synapseAndroid;
+    const obj = asObject(input);
+
+    const nextPackageName = hasOwnKey(obj, "packageName")
+      ? normalizeOptionalString(obj.packageName, current.packageName, 200) || current.packageName
+      : current.packageName;
+
+    const nextFingerprints =
+      hasOwnKey(obj, "sha256CertFingerprints") || hasOwnKey(obj, "fingerprints")
+        ? normalizeSha256FingerprintList(
+            obj.sha256CertFingerprints ?? obj.fingerprints,
+            current.sha256CertFingerprints,
+          )
+        : current.sha256CertFingerprints;
+
+    const nextGoogleClientId =
+      hasOwnKey(obj, "googleClientId") || hasOwnKey(obj, "clientId")
+        ? normalizeOptionalString(obj.googleClientId ?? obj.clientId, "", 256)
+        : current.googleClientId;
+
+    if (nextGoogleClientId && !/^[\w-]+\.apps\.googleusercontent\.com$/i.test(nextGoogleClientId)) {
+      throw new Error("SYNAPSE_ANDROID_GOOGLE_CLIENT_ID 格式无效，需为 xxx.apps.googleusercontent.com");
+    }
+
+    if (!nextPackageName || !/^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$/.test(nextPackageName)) {
+      throw new Error("ANDROID_PACKAGE_NAME 格式无效");
+    }
+
+    if (nextFingerprints.length === 0) {
+      throw new Error("至少需要一个 SHA-256 证书指纹");
+    }
+
+    const nextDisabled = hasOwnKey(obj, "disabled")
+      ? obj.disabled === true || obj.disabled === "true" || obj.disabled === 1 || obj.disabled === "1"
+      : current.disabled;
+
+    const nextConfig: SynapseAndroidRuntimeConfig = {
+      packageName: nextPackageName,
+      sha256CertFingerprints: nextFingerprints,
+      googleClientId: nextGoogleClientId,
+      disabled: Boolean(nextDisabled),
+    };
+
+    const now = new Date();
+    await RuntimeConfigModel.findOneAndUpdate(
+      { key: "SYNAPSE_ANDROID" },
+      { value: nextConfig, updatedAt: now },
+      { upsert: true, returnDocument: "after" },
+    ).exec();
+
+    runtimeConfigCache.synapseAndroid = nextConfig;
+    loadedKeys.add("SYNAPSE_ANDROID");
+    initialized = true;
+
+    return { updatedAt: now.toISOString() };
+  }
+
+  static async deleteSynapseAndroidSetting(): Promise<void> {
+    await RuntimeConfigModel.deleteOne({ key: "SYNAPSE_ANDROID" }).exec();
+    runtimeConfigCache.synapseAndroid = cloneRuntimeConfigDefaults(runtimeConfigDefaults).synapseAndroid;
+    loadedKeys.delete("SYNAPSE_ANDROID");
   }
 
   static async getDeepLXSetting(): Promise<{
@@ -803,11 +1074,13 @@ export class RuntimeConfigService {
     const currentDoc = await readRuntimeConfigDoc("TTS");
     const current = currentDoc ? normalizeStoredTtsConfig(currentDoc.value) : runtimeConfigCache.tts;
 
-    const generationCode =
+    const rawGenerationCode =
       typeof input.generationCode === "string" && input.generationCode.trim().length > 0
-        ? input.generationCode.trim().slice(0, 256)
+        ? input.generationCode
         : current.generationCode;
 
+    // Empty is not allowed on explicit set — admin must provide a high-entropy code.
+    const generationCode = assertStrongGenerationCode(rawGenerationCode, "生成码");
     if (!generationCode) {
       throw new Error("生成码不能为空");
     }
