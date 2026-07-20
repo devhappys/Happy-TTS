@@ -43,15 +43,7 @@ jest.mock("../services/mongoService", () => {
   };
 });
 
-jest.mock("./logger", () => ({
-  logger: {
-    error: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    debug: jest.fn(),
-  },
-}), { virtual: false });
-
+// outEmailService imports `./logger` (src/services/logger); mock that module path.
 jest.mock("../services/logger", () => ({
   logger: {
     error: jest.fn(),
