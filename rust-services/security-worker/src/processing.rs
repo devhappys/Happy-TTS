@@ -110,9 +110,8 @@ pub fn decrypt_envelope(
     };
     let cipher = Aes256Gcm::new_from_slice(&key)
         .map_err(|_| AppError::BadRequest("AES key is invalid".to_string()))?;
-    let nonce = Nonce::<Aes256Gcm>::try_from(nonce.as_slice()).map_err(|_| {
-        AppError::BadRequest("AES-GCM nonce must be 12 bytes".to_string())
-    })?;
+    let nonce = Nonce::<Aes256Gcm>::try_from(nonce.as_slice())
+        .map_err(|_| AppError::BadRequest("AES-GCM nonce must be 12 bytes".to_string()))?;
     cipher
         .decrypt(
             &nonce,
