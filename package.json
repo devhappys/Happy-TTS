@@ -159,7 +159,7 @@
     "@types/swagger-ui-express": "^4.1.8",
     "@types/tar": "^7.0.87",
     "@types/ws": "^8.18.1",
-    "concurrently": "^10.0.3",
+    "concurrently": "^10.0.4",
     "fast-check": "^4.9.0",
     "javascript-obfuscator": "^5.5.0",
     "jest": "^30.4.2",
