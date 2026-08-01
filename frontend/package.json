@@ -59,7 +59,7 @@
     "jszip": "^3.10.1",
     "katex": "^0.18.1",
     "lodash.merge": "^4.6.2",
-    "lucide-react": "^1.25.0",
+    "lucide-react": "^1.27.0",
     "marked": "^18.0.6",
     "marked-highlight": "^2.2.4",
     "marked-katex-extension": "^5.1.10",
