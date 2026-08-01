@@ -177,8 +177,8 @@ importers:
         specifier: ^4.62.2
         version: 4.62.2
       swagger-ui-react:
-        specifier: ^5.32.9
-        version: 5.32.9(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: ^5.32.11
+        version: 5.32.11(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
@@ -2465,6 +2465,9 @@ packages:
   axios@1.18.1:
     resolution: {integrity: sha512-3nTvFlvpn9Zu/RkHUqtc7/+al4UpRW5az71ap5zccp6e8RAYEzhMTecX8Dz1wWDYrPpUoB1HAQEGEAEvUr7S9g==}
 
+  axios@1.19.0:
+    resolution: {integrity: sha512-ht/iuYZXEjFxLH/Hkezgd7m6JKlHHXEUSneaDz8uZe1Gj5QZtCnpyDsckvAiEnT89OEbCLmnte4R4sn7P0EKFw==}
+
   babel-plugin-polyfill-corejs2@0.4.17:
     resolution: {integrity: sha512-aTyf30K/rqAsNwN76zYrdtx8obu0E4KoUME29B1xj+B3WxgvWkp943vYQ+z8Mv3lw9xHXMHpvSPOBxzAkIa94w==}
     peerDependencies:
@@ -2505,6 +2508,10 @@ packages:
   brace-expansion@5.0.7:
     resolution: {integrity: sha512-7oFy703dxfY3/NLxC1fh2SUCQ0H9rmAY+5EpDVfXjUTTs+HEwR2nYaqLv+GWcTsumwxPfiz6CzCNkwXwBUwqCA==}
     engines: {node: 18 || 20 || >=22}
+
+  brace-expansion@5.0.9:
+    resolution: {integrity: sha512-ScQ4IuvIEF1TMlP7Zt+vjJ//9zlPb2SDcxWxM3bk8s6t6GGdJ7KO1dCcTidOPJKePW30LE/2cT7wCyPho9/Wxg==}
+    engines: {node: 20 || >=22}
 
   browserslist@4.28.6:
     resolution: {integrity: sha512-FQBYNK15VMslhLHpA7+n+n1GOlF1kId2xcCg7/j95f24AOF6VDYMNH4mFxF7KuaTdv627faazpOAjFzMrfJOUw==}
@@ -3307,9 +3314,8 @@ packages:
   immediate@3.0.6:
     resolution: {integrity: sha512-XXOFtyqDjNDAQxVfYxuF7g9Il/IbWmmlQg2MYKOH8ExIT1qg6xc4zyS3HaEEATgs1btfzxq15ciUiY7gjSXRGQ==}
 
-  immutable@3.8.3:
-    resolution: {integrity: sha512-AUY/VyX0E5XlibOmWt10uabJzam1zlYjwiEgQSDc5+UIkFNaF9WM0JxXKaNMGf+F/ffUF+7kRKXM9A7C0xXqMg==}
-    engines: {node: '>=0.10.0'}
+  immutable@4.3.9:
+    resolution: {integrity: sha512-ObHy4YN7ycwZOUCLI1/6svfyAFu7vL8RhAvVu/bh/RZW9EPlOyDaQ9jDQWCtdqzaXUjgXZCW1migtHE7YI7UGQ==}
 
   import-meta-resolve@4.2.0:
     resolution: {integrity: sha512-Iqv2fzaTQN28s/FwZAoFq0ZSs/7hMAHJVX+w8PZl3cY19Pxk6jFFalxQoIfW2826i/fDLXv8IiEZRIT0lDuWcg==}
@@ -3495,8 +3501,8 @@ packages:
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
 
-  js-yaml@5.2.1:
-    resolution: {integrity: sha512-zfLtNfQqxVqq3uaTqSkh4x4hZw3KHobGUA0fJUj4wawW8bsQLTVqpHdXSIzidh7o+4lEW36tANuAGdaFx6Zgnw==}
+  js-yaml@5.2.2:
+    resolution: {integrity: sha512-dayzUzKkJ1MkuUtZglSebU43utNXH0OWQByK9rKOOuYIO8M5TV1y+n8ALMdG0rdzBnfNkOmZEqrURepb0ejqBw==}
     hasBin: true
 
   jsdom@26.1.0:
@@ -3883,6 +3889,10 @@ packages:
 
   minimatch@10.2.5:
     resolution: {integrity: sha512-MULkVLfKGYDFYejP07QOurDLLQpcjk7Fw+7jXS2R2czRQzR56yHRveU5NDJEOviH+hETZKSkIk5c+T23GjFUMg==}
+    engines: {node: 18 || 20 || >=22}
+
+  minimatch@10.2.6:
+    resolution: {integrity: sha512-vpLQEs+VLCr1nU0BXS07maYoFwlDAH0gngQuuttxIwutDFEMHq2blX+8vpgxDdK3J1PwjCJiep77OitTZ4Ll1A==}
     engines: {node: 18 || 20 || >=22}
 
   mkdirp@3.0.1:
@@ -4586,12 +4596,12 @@ packages:
     resolution: {integrity: sha512-qsjeeq5YjBZ5eMdFuUa4ZosMLxgr5RZ+F+Y1OrDhuOCEInRMA3x74XdBtggJcj9kOeInz0WE+LgCPDkZFlBYJw==}
     engines: {node: '>=12.0.0'}
 
-  swagger-client@3.37.5:
-    resolution: {integrity: sha512-MuABJgD8vIsT5GVBTGj3HjmiEhArf58ng+YP4fo23NOJb/mKXOpKW3Rln90fnoi7ROt6IJsJy9d5kg8Yidn0/Q==}
+  swagger-client@3.37.7:
+    resolution: {integrity: sha512-AzmF/FDSPYBcoxXarHPnqK3lSXoKH9Fh0EjLHAlP0h/D7EG1Fofl/wEuGqhYT+IBpriu3mSgWCh2xAftsYdL8w==}
     engines: {node: '>=22'}
 
-  swagger-ui-react@5.32.9:
-    resolution: {integrity: sha512-zs6PG4G6XEWG2evKHSwx32nWXIlk48a9Hw9YS9hlt55O5W0FM1cpltMrM/AnU+mohdnV7oEx0ap2TaG3fbfLIA==}
+  swagger-ui-react@5.32.11:
+    resolution: {integrity: sha512-84WYsBEs6vIpWXtqxq7kIrJRs2+YeZPQFULPJ/afjuHKw+rKWvwyA1uQsUC2VWq3oA9XIig3pjlMVE5xXaCDyA==}
     peerDependencies:
       react: ^19.2.7
       react-dom: ^19.2.7
@@ -6998,8 +7008,8 @@ snapshots:
       '@swagger-api/apidom-core': 1.11.3
       '@swagger-api/apidom-error': 1.11.3
       '@types/ramda': 0.30.2
-      axios: 1.18.1
-      minimatch: 10.2.5
+      axios: 1.19.0
+      minimatch: 10.2.6
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
     optionalDependencies:
@@ -7627,6 +7637,16 @@ snapshots:
       - debug
       - supports-color
 
+  axios@1.19.0:
+    dependencies:
+      follow-redirects: 1.16.0
+      form-data: 4.0.6
+      https-proxy-agent: 5.0.1
+      proxy-from-env: 2.1.0
+    transitivePeerDependencies:
+      - debug
+      - supports-color
+
   babel-plugin-polyfill-corejs2@0.4.17(@babel/core@7.29.7):
     dependencies:
       '@babel/compat-data': 7.29.7
@@ -7666,6 +7686,10 @@ snapshots:
       require-from-string: 2.0.2
 
   brace-expansion@5.0.7:
+    dependencies:
+      balanced-match: 4.0.4
+
+  brace-expansion@5.0.9:
     dependencies:
       balanced-match: 4.0.4
 
@@ -8537,7 +8561,7 @@ snapshots:
 
   immediate@3.0.6: {}
 
-  immutable@3.8.3: {}
+  immutable@4.3.9: {}
 
   import-meta-resolve@4.2.0: {}
 
@@ -8766,7 +8790,7 @@ snapshots:
 
   js-tokens@4.0.0: {}
 
-  js-yaml@5.2.1:
+  js-yaml@5.2.2:
     dependencies:
       argparse: 2.0.1
 
@@ -9397,6 +9421,10 @@ snapshots:
     dependencies:
       brace-expansion: 5.0.7
 
+  minimatch@10.2.6:
+    dependencies:
+      brace-expansion: 5.0.9
+
   mkdirp@3.0.1: {}
 
   motion-dom@12.42.2:
@@ -9646,14 +9674,14 @@ snapshots:
     dependencies:
       react: 19.2.7
 
-  react-immutable-proptypes@2.2.0(immutable@3.8.3):
+  react-immutable-proptypes@2.2.0(immutable@4.3.9):
     dependencies:
-      immutable: 3.8.3
+      immutable: 4.3.9
       invariant: 2.2.4
 
-  react-immutable-pure-component@2.2.2(immutable@3.8.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
+  react-immutable-pure-component@2.2.2(immutable@4.3.9)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:
-      immutable: 3.8.3
+      immutable: 4.3.9
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
 
@@ -9774,9 +9802,9 @@ snapshots:
       indent-string: 4.0.0
       strip-indent: 3.0.0
 
-  redux-immutable@4.0.0(immutable@3.8.3):
+  redux-immutable@4.0.0(immutable@4.3.9):
     dependencies:
-      immutable: 3.8.3
+      immutable: 4.3.9
 
   redux@5.0.1: {}
 
@@ -10120,7 +10148,7 @@ snapshots:
 
   svg-pathdata@6.0.3: {}
 
-  swagger-client@3.37.5:
+  swagger-client@3.37.7:
     dependencies:
       '@babel/runtime-corejs3': 7.29.7
       '@scarf/scarf': 1.4.0
@@ -10133,18 +10161,40 @@ snapshots:
       '@swaggerexpert/cookie': 2.0.2
       deepmerge: 4.3.1
       fast-json-patch: 3.1.1
-      js-yaml: 5.2.1
+      js-yaml: 5.2.2
       neotraverse: 0.6.18
       node-abort-controller: 3.1.1
       openapi-path-templating: 2.2.1
       openapi-server-url-templating: 1.3.0
       ramda: 0.30.1
       ramda-adjunct: 5.1.0(ramda@0.30.1)
+    optionalDependencies:
+      '@swagger-api/apidom-ns-asyncapi-2': 1.11.3
+      '@swagger-api/apidom-ns-asyncapi-3': 1.11.3
+      '@swagger-api/apidom-ns-openapi-2': 1.11.3
+      '@swagger-api/apidom-parser-adapter-api-design-systems-json': 1.11.3
+      '@swagger-api/apidom-parser-adapter-api-design-systems-yaml': 1.11.3
+      '@swagger-api/apidom-parser-adapter-arazzo-json-1': 1.11.3
+      '@swagger-api/apidom-parser-adapter-arazzo-yaml-1': 1.11.3
+      '@swagger-api/apidom-parser-adapter-asyncapi-json-2': 1.11.3
+      '@swagger-api/apidom-parser-adapter-asyncapi-json-3': 1.11.3
+      '@swagger-api/apidom-parser-adapter-asyncapi-yaml-2': 1.11.3
+      '@swagger-api/apidom-parser-adapter-asyncapi-yaml-3': 1.11.3
+      '@swagger-api/apidom-parser-adapter-json': 1.11.3
+      '@swagger-api/apidom-parser-adapter-openapi-json-2': 1.11.3
+      '@swagger-api/apidom-parser-adapter-openapi-json-3-0': 1.11.3
+      '@swagger-api/apidom-parser-adapter-openapi-json-3-1': 1.11.3
+      '@swagger-api/apidom-parser-adapter-openapi-json-3-2': 1.11.3
+      '@swagger-api/apidom-parser-adapter-openapi-yaml-2': 1.11.3
+      '@swagger-api/apidom-parser-adapter-openapi-yaml-3-0': 1.11.3
+      '@swagger-api/apidom-parser-adapter-openapi-yaml-3-1': 1.11.3
+      '@swagger-api/apidom-parser-adapter-openapi-yaml-3-2': 1.11.3
+      '@swagger-api/apidom-parser-adapter-yaml-1-2': 1.11.3
     transitivePeerDependencies:
       - debug
       - supports-color
 
-  swagger-ui-react@5.32.9(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
+  swagger-ui-react@5.32.11(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:
       '@babel/runtime-corejs3': 7.29.7
       '@scarf/scarf': 1.4.0
@@ -10155,9 +10205,9 @@ snapshots:
       deep-extend: 0.6.0
       dompurify: 3.4.12
       ieee754: 1.2.1
-      immutable: 3.8.3
+      immutable: 4.3.9
       js-file-download: 0.4.12
-      js-yaml: 5.2.1
+      js-yaml: 5.2.2
       lodash: 4.18.1
       prop-types: 15.8.1
       randexp: 0.5.3
@@ -10166,18 +10216,18 @@ snapshots:
       react-copy-to-clipboard: 5.1.1(react@19.2.7)
       react-debounce-input: 3.3.0(react@19.2.7)
       react-dom: 19.2.7(react@19.2.7)
-      react-immutable-proptypes: 2.2.0(immutable@3.8.3)
-      react-immutable-pure-component: 2.2.2(immutable@3.8.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      react-immutable-proptypes: 2.2.0(immutable@4.3.9)
+      react-immutable-pure-component: 2.2.2(immutable@4.3.9)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       react-inspector: 6.0.2(react@19.2.7)
       react-redux: 9.3.0(@types/react@19.2.17)(react@19.2.7)(redux@5.0.1)
       react-syntax-highlighter: 16.1.1(react@19.2.7)
       redux: 5.0.1
-      redux-immutable: 4.0.0(immutable@3.8.3)
+      redux-immutable: 4.0.0(immutable@4.3.9)
       remarkable: 2.0.1
       reselect: 5.2.0
       serialize-error: 8.1.0
       sha.js: 2.4.12
-      swagger-client: 3.37.5
+      swagger-client: 3.37.7
       url-parse: 1.5.10
       xml: 1.0.1
       xml-but-prettier: 1.0.1
