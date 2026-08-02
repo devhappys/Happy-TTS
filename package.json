@@ -142,7 +142,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.4",
+    "@biomejs/biome": "2.5.6",
     "@playwright/test": "^1.55.0",
     "@types/cors": "^2.8.19",
     "@types/crypto-js": "^4.2.2",
