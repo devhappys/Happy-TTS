@@ -5,7 +5,7 @@ sidebar_position: 12
 
 # 对外邮件 API Rust 调用文档
 
-本文档说明 Rust 应用如何调用 Happy-TTS 已配置好的对外邮件发信能力。外部应用不需要直接保存 Resend 邮箱账号或 Resend API Key，只需使用以下任一鉴权方式即可调用 `/api/outemail/*`。
+本文档说明 Rust 应用如何调用 Synapse 已配置好的对外邮件发信能力。外部应用不需要直接保存 Resend 邮箱账号或 Resend API Key，只需使用以下任一鉴权方式即可调用 `/api/outemail/*`。
 
 ## 1. 前置配置
 
@@ -282,7 +282,7 @@ async fn main() -> Result<(), String> {
             subject: "测试邮件",
             content: "<h1>你好</h1><p>这是一封来自 Rust 应用的测试邮件。</p>",
             from: Some("noreply"),
-            display_name: Some("Happy-TTS"),
+            display_name: Some("Synapse"),
             domain: None,
             attachments: None,
         })
@@ -325,7 +325,7 @@ POST /api/outemail/batch-send
     }
   ],
   "from": "noreply",
-  "displayName": "Happy-TTS"
+  "displayName": "Synapse"
 }
 ```
 

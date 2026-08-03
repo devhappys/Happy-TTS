@@ -7,7 +7,7 @@ import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-const CODEQL_USER_AGENT = 'happy-tts-codeql-alert-fixer';
+const CODEQL_USER_AGENT = 'synapse-codeql-alert-fixer';
 
 /** Rules we can safely auto-remediate in-repo. */
 export const AUTOFIXABLE_CODEQL_RULES = new Set([

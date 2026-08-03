@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { getApiBaseUrl } from '../api/api';
 
-const FRONTEND_VISIT_SESSION_KEY = 'happy-tts:configuration-notice-visit:v1';
+const FRONTEND_VISIT_SESSION_KEY = 'synapse:configuration-notice-visit:v1';
 
 function removeVisitMarker(): void {
   try {

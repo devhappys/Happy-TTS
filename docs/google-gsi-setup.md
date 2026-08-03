@@ -1,5 +1,5 @@
 /**
- * Google Identity Services (GSI) setup for Happy-TTS / Synapse
+ * Google Identity Services (GSI) setup for Synapse
  *
  * Official guide:
  * https://developers.google.cn/identity/gsi/web/guides/get-google-api-clientid
@@ -25,7 +25,7 @@
 1. Go to **APIs & Services → Credentials**.
 2. **Create credentials → OAuth client ID**.
 3. Application type: **Web application** (not Desktop / iOS / Android / TV).
-4. Name it e.g. `Happy-TTS Web GSI`.
+4. Name it e.g. `Synapse GSI`.
 5. **Authorized JavaScript origins** (must match the browser origin exactly, no path):
    - Production: `https://tts.chloemlla.com` (or your real frontend origin)
    - Local Vite: `http://localhost:3001`
@@ -53,7 +53,7 @@
 
 > Important: a JSON rooted at `"installed": { ... }` is a **Desktop** client and **cannot** be used for GSI Web Sign-In. The admin importer will reject it.
 
-# 4. Configure Happy-TTS
+# 4. Configure Synapse
 
 ## Option A — Admin runtime config (recommended)
 1. Sign in as admin → Env / Runtime Config → **Google Auth 运行时配置**.

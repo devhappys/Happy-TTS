@@ -1,4 +1,4 @@
-# Happy-TTS legacy codebase audit report
+# Synapse legacy codebase audit report
 
 - Updated: 2026-07-31
 - Scope and exclusions: Repository-wide read-only audit of first-party backend, frontend, persistence, configuration, deployment, CI, tests, and operator-facing documentation. Generated outputs, dependency/vendor directories, `.git/`, `.trellis/`, `.agents/`, and the `tame-legacy-codebase/` audit toolkit are excluded from product LOC; they may still be inspected as workflow evidence where relevant.

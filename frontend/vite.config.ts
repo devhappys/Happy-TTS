@@ -14,7 +14,7 @@ const __dirname = path.dirname(__filename);
 
 // Keep production obfuscation reproducible so equivalent builds emit stable
 // hashes and gzip sizes. A zero/omitted seed makes javascript-obfuscator random.
-const OBFUSCATION_SEED = "happy-tts-production-v1";
+const OBFUSCATION_SEED = "synapse-production-v1";
 
 // Shared manual chunks mapping — used as a function for rolldown (Vite 7) compatibility
 const MANUAL_CHUNKS: Record<string, string[]> = {

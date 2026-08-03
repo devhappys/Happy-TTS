@@ -1,6 +1,6 @@
 # Bilibili Settings Sync Contract
 
-This is the Happy-TTS side of the cross-repository contract. PiliPlus uses the
+This is the Synapse side of the cross-repository contract. PiliPlus uses the
 authenticated `/api/bilibili-sync` routes below.
 
 ## Required security gates

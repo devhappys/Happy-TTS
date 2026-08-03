@@ -1,4 +1,4 @@
-# Happy-TTS 后端 MongoDB 持久化细节
+# Synapse 后端 MongoDB 持久化细节
 
 本文把后端使用 MongoDB 持久化的配置、启动链路、数据边界、集合、索引、降级策略和运维检查集中说明。用户口头提到的 `mango` 在本项目中对应代码里的 `mongo` / MongoDB。
 

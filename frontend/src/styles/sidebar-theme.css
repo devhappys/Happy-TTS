@@ -1,9 +1,9 @@
 /**
- * Minimal shadcn / new-api sidebar design tokens for Happy-TTS.
+ * Minimal shadcn / new-api sidebar design tokens for Synapse.
  *
  * Only the tokens consumed by `@/components/ui/sidebar` and its peer
  * ui primitives (button / sheet / tooltip / separator / skeleton).
- * Existing Happy-TTS slate/indigo visual language is preserved for
+ * Existing Synapse slate/indigo visual language is preserved for
  * non-sidebar surfaces; these tokens only light up the new shell.
  */
 

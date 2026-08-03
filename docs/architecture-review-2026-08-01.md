@@ -1,4 +1,4 @@
-# Synapse (Happy-TTS) 架构审查报告
+# Synapse 架构审查报告
 
 > 审查日期：2026-08-01  
 > 审查基线：`main` 分支 `b2e137b3`  

@@ -1,4 +1,4 @@
-# Happy-TTS targeted remediation report
+# Synapse targeted remediation report
 
 Date: 2026-07-31  
 Mode: Standard / E2 / G1 / Q1 / C1 / D0  
@@ -75,7 +75,7 @@ Implementation source: [`research/fish-audio-s2.1-pro-free.md`](../.trellis/task
 - Request: JSON with `text`, `format`, and optional `reference_id`
 - Model selection: `model` request header
 - Exposed free model: `s2.1-pro-free`
-- Current Happy-TTS output constraint: MP3 only
+- Current Synapse output constraint: MP3 only
 - Persistence: model remains a validated extensible string, not a closed database enum
 
 ## Before / After comparison
@@ -109,7 +109,7 @@ Repository instructions prohibit local build, test, type-check, lint and install
 3. Legacy Mongo migration CAS matches the complete current `messages` array. Real Mongo/Mongoose equality behavior and repeated conflict handling still require integration confirmation.
 4. Mongo recovery replays the delta between the first failed-write baseline and current fallback memory. Cross-process recovery races need a dedicated concurrency/integration test.
 5. The LibreChat page still derives a presentation-level `guestMode` from the absence of a manual token. Backend Cookie identity remains authoritative, but the UI can briefly label a Cookie user as a guest while its independent auth hook initializes.
-6. Fish Audio currently supports MP3 only in Happy-TTS, and the documented primary model is `s2.1-pro-free`; additional provider features and formats are out of scope.
+6. Fish Audio currently supports MP3 only in Synapse, and the documented primary model is `s2.1-pro-free`; additional provider features and formats are out of scope.
 7. Original passwords, MFA seeds, recovery codes and ordinary runtime secrets remain recoverable by explicit product design. This preserves operational recovery but retains plaintext-equivalent compromise impact and must be treated as an accepted high security risk, not as remediated.
 8. High-risk deployment/release findings in the frozen audit remain open, including unverified promotion, host/artifact identity, readiness cutover, rollback and provenance controls.
 

@@ -24,9 +24,9 @@ const IS_WINDOWS = process.platform === 'win32';
 
 const GITHUB_API_ROOT = 'https://api.github.com';
 const GITHUB_API_VERSION = '2022-11-28';
-const GITHUB_USER_AGENT = 'happy-tts-security-alert-fixer';
+const GITHUB_USER_AGENT = 'synapse-security-alert-fixer';
 const CRATES_IO_API_ROOT = 'https://crates.io/api/v1/crates';
-const CRATES_IO_USER_AGENT = 'happy-tts-dependabot-alert-fixer';
+const CRATES_IO_USER_AGENT = 'synapse-dependabot-alert-fixer';
 const DEPENDENCY_FIELDS = [
   'dependencies',
   'devDependencies',

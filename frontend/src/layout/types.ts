@@ -16,7 +16,7 @@ type BaseNavItem = {
    */
   matchChildren?: boolean;
   /**
-   * Minimum role required to see this item. Happy-TTS roles are string
+   * Minimum role required to see this item. Synapse roles are string
    * enums (`'admin' | 'user'`); use `'admin'` to hide from non-admins.
    */
   requiredRole?: 'admin' | 'user';
