@@ -116,8 +116,8 @@ importers:
         specifier: ^2.2.4
         version: 2.2.4(marked@18.0.10)
       marked-katex-extension:
-        specifier: ^5.1.11
-        version: 5.1.11(katex@0.18.4)(marked@18.0.10)
+        specifier: ^5.1.12
+        version: 5.1.12(katex@0.18.4)(marked@18.0.10)
       md5:
         specifier: ^2.3.0
         version: 2.3.0
@@ -3712,8 +3712,8 @@ packages:
     peerDependencies:
       marked: ^18.0.10
 
-  marked-katex-extension@5.1.11:
-    resolution: {integrity: sha512-LNU0Sol6E1cjfV4EdtP+V0D1FsKcJZ6suB81J2x9mw5vWBvTxzJCGUggy/bM3o1ZAZw3/muShid3jrYHkzydhw==}
+  marked-katex-extension@5.1.12:
+    resolution: {integrity: sha512-DgfH0CFrOuVwVEXNJ+rTtYOtZZECpHhA0bu7xBiACAJI4geeaCZfDq+hiJ1yJx780fDh2HWHlr+NySxuc2DD1w==}
     peerDependencies:
       katex: '>=0.16 <0.19'
       marked: ^18.0.10
@@ -8809,7 +8809,7 @@ snapshots:
     dependencies:
       marked: 18.0.10
 
-  marked-katex-extension@5.1.11(katex@0.18.4)(marked@18.0.10):
+  marked-katex-extension@5.1.12(katex@0.18.4)(marked@18.0.10):
     dependencies:
       katex: 0.18.4
       marked: 18.0.10
